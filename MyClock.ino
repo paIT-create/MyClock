@@ -310,7 +310,7 @@ void TempTask(void *pv) {
 
 void LogicTask(void *pv) {
   // Prepares display buffer only.
-  uint32_t lastSwitch = millis();
+  //uint32_t lastSwitch = millis();
   bool colon = false;
 
   for (;;) {
@@ -322,9 +322,16 @@ void LogicTask(void *pv) {
     }
     uint32_t now = millis();
 
-    if (now - lastSwitch >= 5000) {
-      g_showTemp = !g_showTemp;
-      lastSwitch = now;
+    // if (now - lastSwitch >= 5000) {
+    //   g_showTemp = !g_showTemp;
+    //   lastSwitch = now;
+    // }
+    uint32_t phase = now % 15000;   // 15‑sekundowy cykl
+
+    if (phase < 5000) {
+      g_showTemp = true;    // 0–5 s → temperatura
+    } else {
+      g_showTemp = false;   // 5–15 s → czas
     }
 
     colon = !colon;
