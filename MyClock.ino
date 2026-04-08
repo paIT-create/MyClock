@@ -166,7 +166,7 @@ static inline uint8_t segForDigit(int d) {
 }
 
 void setDisplayTime(int hh, int mm, bool colonOn) {
-  uint8_t s0 = segForDigit(hh / 10);
+  uint8_t s0 = (hh >= 10) ? segForDigit(hh / 10) : FONT_BLANK;
   uint8_t s1 = segForDigit(hh % 10);
   uint8_t s2 = segForDigit(mm / 10);
   uint8_t s3 = segForDigit(mm % 10);
