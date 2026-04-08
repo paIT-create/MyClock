@@ -425,6 +425,15 @@ void setup() {
 
   loadSettings();
   initDisplayHardware();
+  // Ustawiamy wyświetlacz w stan stabilny PRZED startem tasków
+  g_displaySeg[0] = FONT_MINUS;
+  g_displaySeg[1] = FONT_MINUS;
+  g_displaySeg[2] = FONT_MINUS;
+  g_displaySeg[3] = FONT_MINUS;
+  g_activeDigit = 0;
+  allDigitsOff();
+  write595(0);   // wyczyść 74HC595
+
   initBrightnessHardware();
 
   sensors.begin();
