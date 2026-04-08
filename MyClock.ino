@@ -88,7 +88,7 @@ static const uint8_t FONT_C      = B00111001;  // litera C
 // Shared state (written by tasks, read by DisplayTask)
 // -----------------------------------------------------------------------------
 volatile uint8_t g_displaySeg[4] = {0, 0, 0, 0};  // raw segment bytes (incl DP)
-volatile uint8_t g_activeDigit = 3;
+volatile uint8_t g_activeDigit = 0;
 
 volatile int   g_hour   = 0;
 volatile int   g_minute = 0;
@@ -104,7 +104,7 @@ uint8_t g_displayNext[4];
 // Brightness control
 Preferences prefs;
 volatile bool  g_autoBrightness = true;   // can be persisted later if you want
-volatile uint8_t g_brightness = 180;      // 0..255 (logical brightness)
+volatile uint8_t g_brightness = 200;      // 0..255 (logical brightness)
 
 // -----------------------------------------------------------------------------
 // WiFi / Portal
@@ -251,7 +251,7 @@ uint8_t computeAutoBrightnessFromLDR() {
 
   // Map to brightness: darker -> brighter, brighter -> dimmer (typical for clocks)
   // Adjust these two points after first test:
-  const float RAW_DARK  = 600;   // room dark
+  const float RAW_DARK  = 300;   // room dark
   const float RAW_BRIGHT = 3000; // daylight
 
   float x = (ema - RAW_DARK) / (RAW_BRIGHT - RAW_DARK);
@@ -310,7 +310,6 @@ void TempTask(void *pv) {
 
 void LogicTask(void *pv) {
   // Prepares display buffer only.
-  //uint32_t lastSwitch = millis();
   bool colon = false;
 
   for (;;) {
@@ -322,10 +321,6 @@ void LogicTask(void *pv) {
     }
     uint32_t now = millis();
 
-    // if (now - lastSwitch >= 5000) {
-    //   g_showTemp = !g_showTemp;
-    //   lastSwitch = now;
-    // }
     uint32_t phase = now % 15000;   // 15‑sekundowy cykl
 
     if (phase < 5000) {
@@ -452,10 +447,6 @@ void setup() {
   commitDisplayBuffer();
   g_activeDigit = 0;
   // Twarde wygaszenie wszystkich cyfr (ULN2803)
-  // digitalWrite(PIN_DIGIT_0, LOW);
-  // digitalWrite(PIN_DIGIT_1, LOW);
-  // digitalWrite(PIN_DIGIT_2, LOW);
-  // digitalWrite(PIN_DIGIT_3, LOW);
   allDigitsOff();
   write595(0);   // wyczyść 74HC595
 
