@@ -84,6 +84,9 @@ static const uint8_t DIGIT_FONT[10] = {
 
 static const uint8_t FONT_MINUS = SEG_G;
 static const uint8_t FONT_BLANK = 0;
+// Znaki specjalne do temperatury (dokładne maski bitowe)
+static const uint8_t FONT_DEGREE = B01100011;  // znak stopni °
+static const uint8_t FONT_C      = B00111001;  // litera C
 
 // -----------------------------------------------------------------------------
 // Shared state (written by tasks, read by DisplayTask)
