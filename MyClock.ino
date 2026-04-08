@@ -298,16 +298,17 @@ void TempTask(void *pv) {
 }
 
 void LogicTask(void *pv) {
-  if (!g_timeValid || !g_tempValid) {
-    setDisplayDashes();
-    vTaskDelay(pdMS_TO_TICKS(200));
-    continue;
-  }
   // Prepares display buffer only.
   uint32_t lastSwitch = millis();
   bool colon = false;
 
   for (;;) {
+    // --- STARTUP: czekamy aż czas i temperatura będą gotowe ---
+    if (!g_timeValid || !g_tempValid) {
+      setDisplayDashes();
+      vTaskDelay(pdMS_TO_TICKS(200));
+      continue;   // TERAZ jesteśmy wewnątrz pętli -> OK
+    }
     uint32_t now = millis();
 
     if (now - lastSwitch >= 5000) {
