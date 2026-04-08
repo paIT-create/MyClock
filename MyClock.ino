@@ -257,7 +257,7 @@ void DisplayTask(void *pv) {
   // Highest priority, Core 0: guarantees no blanking.
   for (;;) {
     refreshDisplayOnce();
-    vTaskDelay(1); // ~1ms tick; adjust if needed
+    vTaskDelay(5); // ~5ms tick; adjust if needed
   }
 }
 
@@ -393,7 +393,7 @@ void loadSettings() {
 }
 
 void setupTime() {
-  configTzTime("CET-1CEST,M3.5.0/2,M10.5.0/3", "pool.ntp.org", "time.nist.gov");
+  configTzTime("CET-1CEST,M3.5.0/2,M10.5.0/3", "tempus1.gum.gov.pl", "pool.ntp.org", "tempus2.gum.gov.pl");
 }
 
 void setup() {
