@@ -14,6 +14,7 @@
 #include <Arduino.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "driver/gpio.h"
 
 // ===== WiFi / Portal / OTA =====
 #include <WiFi.h>
@@ -403,10 +404,10 @@ void initDisplayHardware() {
   for (int i = 0; i < 4; i++) {
     pinMode(DIGIT_PINS[i], OUTPUT);
   }
-  gpio_pulldown_en((gpio_num_t)PIN_DIGIT_0);
-  gpio_pulldown_en((gpio_num_t)PIN_DIGIT_1);
-  gpio_pulldown_en((gpio_num_t)PIN_DIGIT_2);
-  gpio_pulldown_en((gpio_num_t)PIN_DIGIT_3);
+  // gpio_pulldown_en((gpio_num_t)PIN_DIGIT_0);
+  // gpio_pulldown_en((gpio_num_t)PIN_DIGIT_1);
+  // gpio_pulldown_en((gpio_num_t)PIN_DIGIT_2);
+  // gpio_pulldown_en((gpio_num_t)PIN_DIGIT_3);
 
   //allDigitsOff();
   //write595(0);
@@ -435,7 +436,30 @@ void setupTime() {
   configTzTime("CET-1CEST,M3.5.0/2,M10.5.0/3", "tempus1.gum.gov.pl", "pool.ntp.org", "tempus2.gum.gov.pl");
 }
 
+static inline void earlyDigitPulldowns() {
+  gpio_set_direction((gpio_num_t)PIN_DIGIT_0, GPIO_MODE_OUTPUT);
+  gpio_set_direction((gpio_num_t)PIN_DIGIT_1, GPIO_MODE_OUTPUT);
+  gpio_set_direction((gpio_num_t)PIN_DIGIT_2, GPIO_MODE_OUTPUT);
+  gpio_set_direction((gpio_num_t)PIN_DIGIT_3, GPIO_MODE_OUTPUT);
+
+  gpio_set_level((gpio_num_t)PIN_DIGIT_0, 0);
+  gpio_set_level((gpio_num_t)PIN_DIGIT_1, 0);
+  gpio_set_level((gpio_num_t)PIN_DIGIT_2, 0);
+  gpio_set_level((gpio_num_t)PIN_DIGIT_3, 0);
+
+  gpio_pulldown_en((gpio_num_t)PIN_DIGIT_0);
+  gpio_pulldown_en((gpio_num_t)PIN_DIGIT_1);
+  gpio_pulldown_en((gpio_num_t)PIN_DIGIT_2);
+  gpio_pulldown_en((gpio_num_t)PIN_DIGIT_3);
+
+  gpio_pullup_dis((gpio_num_t)PIN_DIGIT_0);
+  gpio_pullup_dis((gpio_num_t)PIN_DIGIT_1);
+  gpio_pullup_dis((gpio_num_t)PIN_DIGIT_2);
+  gpio_pullup_dis((gpio_num_t)PIN_DIGIT_3);
+}
+
 void setup() {
+  earlyDigitPulldowns();
   Serial.begin(115200);
 
   pinMode(PIN_LED, OUTPUT);
