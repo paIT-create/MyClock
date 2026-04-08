@@ -92,7 +92,7 @@ static const uint8_t FONT_C      = B00111001;  // litera C
 // Shared state (written by tasks, read by DisplayTask)
 // -----------------------------------------------------------------------------
 volatile uint8_t g_displaySeg[4] = {0, 0, 0, 0};  // raw segment bytes (incl DP)
-volatile uint8_t g_activeDigit = 0;
+volatile uint8_t g_activeDigit = 3;
 
 volatile int   g_hour   = 0;
 volatile int   g_minute = 0;
