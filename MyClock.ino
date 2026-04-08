@@ -436,30 +436,25 @@ void setupTime() {
   configTzTime("CET-1CEST,M3.5.0/2,M10.5.0/3", "tempus1.gum.gov.pl", "pl.pool.ntp.org", "tempus2.gum.gov.pl");
 }
 
-static inline void earlyDigitPulldowns() {
-  gpio_set_direction((gpio_num_t)PIN_DIGIT_0, GPIO_MODE_OUTPUT);
-  gpio_set_direction((gpio_num_t)PIN_DIGIT_1, GPIO_MODE_OUTPUT);
-  gpio_set_direction((gpio_num_t)PIN_DIGIT_2, GPIO_MODE_OUTPUT);
-  gpio_set_direction((gpio_num_t)PIN_DIGIT_3, GPIO_MODE_OUTPUT);
+static void earlyDigitPulldownInit() {
+  const gpio_num_t digits[] = {
+    (gpio_num_t)PIN_DIGIT_0,
+    (gpio_num_t)PIN_DIGIT_1,
+    (gpio_num_t)PIN_DIGIT_2,
+    (gpio_num_t)PIN_DIGIT_3
+  };
 
-  gpio_set_level((gpio_num_t)PIN_DIGIT_0, 0);
-  gpio_set_level((gpio_num_t)PIN_DIGIT_1, 0);
-  gpio_set_level((gpio_num_t)PIN_DIGIT_2, 0);
-  gpio_set_level((gpio_num_t)PIN_DIGIT_3, 0);
-
-  gpio_pulldown_en((gpio_num_t)PIN_DIGIT_0);
-  gpio_pulldown_en((gpio_num_t)PIN_DIGIT_1);
-  gpio_pulldown_en((gpio_num_t)PIN_DIGIT_2);
-  gpio_pulldown_en((gpio_num_t)PIN_DIGIT_3);
-
-  gpio_pullup_dis((gpio_num_t)PIN_DIGIT_0);
-  gpio_pullup_dis((gpio_num_t)PIN_DIGIT_1);
-  gpio_pullup_dis((gpio_num_t)PIN_DIGIT_2);
-  gpio_pullup_dis((gpio_num_t)PIN_DIGIT_3);
+  for (auto d : digits) {
+    gpio_reset_pin(d);
+    gpio_set_direction(d, GPIO_MODE_OUTPUT);
+    gpio_set_level(d, 0);          // twarde OFF
+    gpio_pulldown_en(d);           // WAŻNE
+    gpio_pullup_dis(d);
+  }
 }
 
 void setup() {
-  earlyDigitPulldowns();
+  earlyDigitPulldownInit();
   Serial.begin(115200);
 
   pinMode(PIN_LED, OUTPUT);
