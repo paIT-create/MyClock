@@ -12,10 +12,6 @@
 */
 
 #include <Arduino.h>
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "driver/gpio.h"
-
 // ===== WiFi / Portal / OTA =====
 #include <WiFi.h>
 #include <WebServer.h>
@@ -404,13 +400,8 @@ void initDisplayHardware() {
   for (int i = 0; i < 4; i++) {
     pinMode(DIGIT_PINS[i], OUTPUT);
   }
-  // gpio_pulldown_en((gpio_num_t)PIN_DIGIT_0);
-  // gpio_pulldown_en((gpio_num_t)PIN_DIGIT_1);
-  // gpio_pulldown_en((gpio_num_t)PIN_DIGIT_2);
-  // gpio_pulldown_en((gpio_num_t)PIN_DIGIT_3);
-
-  //allDigitsOff();
-  //write595(0);
+  allDigitsOff();
+  write595(0);
 }
 
 void initBrightnessHardware() {
@@ -436,25 +427,7 @@ void setupTime() {
   configTzTime("CET-1CEST,M3.5.0/2,M10.5.0/3", "tempus1.gum.gov.pl", "pl.pool.ntp.org", "tempus2.gum.gov.pl");
 }
 
-static void earlyDigitPulldownInit() {
-  const gpio_num_t digits[] = {
-    (gpio_num_t)PIN_DIGIT_0,
-    (gpio_num_t)PIN_DIGIT_1,
-    (gpio_num_t)PIN_DIGIT_2,
-    (gpio_num_t)PIN_DIGIT_3
-  };
-
-  for (auto d : digits) {
-    gpio_reset_pin(d);
-    gpio_set_direction(d, GPIO_MODE_OUTPUT);
-    gpio_set_level(d, 0);          // twarde OFF
-    gpio_pulldown_en(d);           // WAŻNE
-    gpio_pullup_dis(d);
-  }
-}
-
 void setup() {
-  earlyDigitPulldownInit();
   Serial.begin(115200);
 
   pinMode(PIN_LED, OUTPUT);
@@ -472,10 +445,10 @@ void setup() {
   commitDisplayBuffer();
   g_activeDigit = 0;
   // Twarde wygaszenie wszystkich cyfr (ULN2803)
-  digitalWrite(PIN_DIGIT_0, LOW);
-  digitalWrite(PIN_DIGIT_1, LOW);
-  digitalWrite(PIN_DIGIT_2, LOW);
-  digitalWrite(PIN_DIGIT_3, LOW);
+  // digitalWrite(PIN_DIGIT_0, LOW);
+  // digitalWrite(PIN_DIGIT_1, LOW);
+  // digitalWrite(PIN_DIGIT_2, LOW);
+  // digitalWrite(PIN_DIGIT_3, LOW);
   allDigitsOff();
   write595(0);   // wyczyść 74HC595
 
