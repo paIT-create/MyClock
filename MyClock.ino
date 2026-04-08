@@ -440,6 +440,8 @@ void setup() {
 
   loadSettings();
   initDisplayHardware();
+  pinMode(PIN_595_OE, OUTPUT);
+  digitalWrite(PIN_595_OE, HIGH);   // OE aktywne LOW → HIGH = wyłączone
   // Ustawiamy wyświetlacz w stan stabilny PRZED startem tasków
   g_displayNext[0] = FONT_MINUS;
   g_displayNext[1] = FONT_MINUS;
