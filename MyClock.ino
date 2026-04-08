@@ -433,7 +433,7 @@ void loadSettings() {
 }
 
 void setupTime() {
-  configTzTime("CET-1CEST,M3.5.0/2,M10.5.0/3", "tempus1.gum.gov.pl", "pool.ntp.org", "tempus2.gum.gov.pl");
+  configTzTime("CET-1CEST,M3.5.0/2,M10.5.0/3", "tempus1.gum.gov.pl", "pl.pool.ntp.org", "tempus2.gum.gov.pl");
 }
 
 static inline void earlyDigitPulldowns() {
