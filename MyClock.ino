@@ -104,7 +104,7 @@ uint8_t g_displayNext[4];
 // Brightness control
 Preferences prefs;
 volatile bool  g_autoBrightness = true;   // can be persisted later if you want
-volatile uint8_t g_brightness = 200;      // 0..255 (logical brightness)
+volatile uint8_t g_brightness = 220;      // 0..255 (logical brightness)
 
 // -----------------------------------------------------------------------------
 // WiFi / Portal
@@ -251,7 +251,7 @@ uint8_t computeAutoBrightnessFromLDR() {
 
   // Map to brightness: darker -> brighter, brighter -> dimmer (typical for clocks)
   // Adjust these two points after first test:
-  const float RAW_DARK  = 300;   // room dark
+  const float RAW_DARK  = 600;   // room dark
   const float RAW_BRIGHT = 3000; // daylight
 
   float x = (ema - RAW_DARK) / (RAW_BRIGHT - RAW_DARK);
@@ -262,8 +262,8 @@ uint8_t computeAutoBrightnessFromLDR() {
   float b = 1.0f - x;
 
   // Clamp to comfortable range
-  const int B_MIN = 20;
-  const int B_MAX = 220;
+  const int B_MIN = 1;
+  const int B_MAX = 250;
 
   int out = (int)(B_MIN + b * (B_MAX - B_MIN));
   if (out < 0) out = 0;
@@ -421,7 +421,7 @@ void initBrightnessHardware() {
 
 void loadSettings() {
   prefs.begin("clock", false);
-  g_brightness = prefs.getUChar("bright", 180);
+  g_brightness = prefs.getUChar("bright", 220);
   g_autoBrightness = prefs.getBool("autoB", true);
 }
 
