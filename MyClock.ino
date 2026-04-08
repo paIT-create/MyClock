@@ -100,6 +100,9 @@ volatile float g_tempC  = NAN;
 
 volatile bool  g_showTemp = false;
 
+volatile bool g_timeValid = false;
+volatile bool g_tempValid = false;
+
 // Brightness control
 Preferences prefs;
 volatile bool  g_autoBrightness = true;   // can be persisted later if you want
@@ -206,6 +209,13 @@ void setDisplayTemp(float tC) {
   g_displaySeg[3] = FONT_C;
 }
 
+void setDisplayDashes() {
+  g_displaySeg[0] = FONT_MINUS;
+  g_displaySeg[1] = FONT_MINUS;
+  g_displaySeg[2] = FONT_MINUS;
+  g_displaySeg[3] = FONT_MINUS;
+}
+
 // -----------------------------------------------------------------------------
 // Brightness: OE PWM + optional LDR auto brightness
 // -----------------------------------------------------------------------------
@@ -267,6 +277,7 @@ void TimeTask(void *pv) {
     if (getLocalTime(&ti, 50)) {
       g_hour = ti.tm_hour;
       g_minute = ti.tm_min;
+      g_timeValid = true;
     }
     vTaskDelay(pdMS_TO_TICKS(1000));
   }
@@ -277,12 +288,21 @@ void TempTask(void *pv) {
   for (;;) {
     sensors.requestTemperatures();          // start conversion (non-blocking due to setWaitForConversion(false))
     vTaskDelay(pdMS_TO_TICKS(800));         // wait conversion (does not affect display)
-    g_tempC = sensors.getTempCByIndex(0);
+    float t = sensors.getTempCByIndex(0);
+    if (!isnan(t)) {
+      g_tempC = t;
+      g_tempValid = true;
+    }
     vTaskDelay(pdMS_TO_TICKS(5000));
   }
 }
 
 void LogicTask(void *pv) {
+  if (!g_timeValid || !g_tempValid) {
+    setDisplayDashes();
+    vTaskDelay(pdMS_TO_TICKS(200));
+    continue;
+  }
   // Prepares display buffer only.
   uint32_t lastSwitch = millis();
   bool colon = false;
