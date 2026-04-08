@@ -32,8 +32,6 @@
 // ===== Preferences =====
 #include <Preferences.h>
 
-portMUX_TYPE displayMux = portMUX_INITIALIZER_UNLOCKED;
-
 // -----------------------------------------------------------------------------
 // Pinout (YOUR PROVIDED PINS)
 // -----------------------------------------------------------------------------
@@ -224,12 +222,12 @@ void setDisplayDashes() {
 }
 
 void commitDisplayBuffer() {
-  portENTER_CRITICAL(&displayMux);
+  noInterrupts();
   g_displaySeg[0] = g_displayNext[0];
   g_displaySeg[1] = g_displayNext[1];
   g_displaySeg[2] = g_displayNext[2];
   g_displaySeg[3] = g_displayNext[3];
-  tportEXIT_CRITICAL(&displayMux);
+  interrupts();
 }
 
 // -----------------------------------------------------------------------------
