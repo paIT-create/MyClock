@@ -403,9 +403,13 @@ void initDisplayHardware() {
   for (int i = 0; i < 4; i++) {
     pinMode(DIGIT_PINS[i], OUTPUT);
   }
+  gpio_pulldown_en((gpio_num_t)PIN_DIGIT_0);
+  gpio_pulldown_en((gpio_num_t)PIN_DIGIT_1);
+  gpio_pulldown_en((gpio_num_t)PIN_DIGIT_2);
+  gpio_pulldown_en((gpio_num_t)PIN_DIGIT_3);
 
-  allDigitsOff();
-  write595(0);
+  //allDigitsOff();
+  //write595(0);
 }
 
 void initBrightnessHardware() {
@@ -448,6 +452,11 @@ void setup() {
   g_displayNext[3] = FONT_MINUS;
   commitDisplayBuffer();
   g_activeDigit = 0;
+  // Twarde wygaszenie wszystkich cyfr (ULN2803)
+  digitalWrite(PIN_DIGIT_0, LOW);
+  digitalWrite(PIN_DIGIT_1, LOW);
+  digitalWrite(PIN_DIGIT_2, LOW);
+  digitalWrite(PIN_DIGIT_3, LOW);
   allDigitsOff();
   write595(0);   // wyczyść 74HC595
 
