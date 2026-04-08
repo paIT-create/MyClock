@@ -9,9 +9,6 @@
   - mDNS: esp32-clock.local (best-effort)
   - Brightness: OE pin PWM + optional auto brightness from LDR (ADC)
 
-  IMPORTANT:
-  - Fill in PIN_DIGIT_0..3 to match your ULN2803 digit select wiring.
-  - Digit enable polarity: HIGH enables digit (as per your info).
 */
 
 #include <Arduino.h>
