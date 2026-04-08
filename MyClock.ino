@@ -185,8 +185,7 @@ void setDisplayTime(int hh, int mm, bool colonOn) {
 }
 
 void setDisplayTemp(float tC) {
-  // Format: TT.T or -T.T on 4 digits: [sign/tens][ones][tenths+DP][blank]
-  if (isnan(tC) || tC < -99.9f || tC > 99.9f) {
+  if (isnan(tC) || tC < 0.0f || tC > 99.0f) {
     g_displaySeg[0] = FONT_BLANK;
     g_displaySeg[1] = FONT_BLANK;
     g_displaySeg[2] = FONT_BLANK;
@@ -194,19 +193,17 @@ void setDisplayTemp(float tC) {
     return;
   }
 
-  bool neg = tC < 0;
-  float a = fabsf(tC);
-  int whole = (int)a;
-  int tenths = (int)roundf((a - whole) * 10.0f);
-  if (tenths == 10) { tenths = 0; whole += 1; }
+  int temp = (int)roundf(tC);
 
-  int tens = whole / 10;
-  int ones = whole % 10;
+  // Dziesiątki – bez nieznaczącego zera
+  g_displaySeg[0] = (temp >= 10) ? segForDigit(temp / 10) : FONT_BLANK;
 
-  g_displaySeg[0] = neg ? FONT_MINUS : (tens ? segForDigit(tens) : FONT_BLANK);
-  g_displaySeg[1] = segForDigit(ones);
-  g_displaySeg[2] = segForDigit(tenths) | SEG_DP;
-  g_displaySeg[3] = FONT_BLANK;
+  // Jedności
+  g_displaySeg[1] = segForDigit(temp % 10);
+
+  // Znak stopni i litera C
+  g_displaySeg[2] = FONT_DEGREE;
+  g_displaySeg[3] = FONT_C;
 }
 
 // -----------------------------------------------------------------------------
