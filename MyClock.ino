@@ -103,6 +103,8 @@ volatile bool  g_showTemp = false;
 volatile bool g_timeValid = false;
 volatile bool g_tempValid = false;
 
+uint8_t g_displayNext[4];
+
 // Brightness control
 Preferences prefs;
 volatile bool  g_autoBrightness = true;   // can be persisted later if you want
@@ -181,39 +183,52 @@ void setDisplayTime(int hh, int mm, bool colonOn) {
   if (colonOn) s1 |= SEG_DP;
   else         s1 &= ~SEG_DP;
 
-  g_displaySeg[0] = s0;
-  g_displaySeg[1] = s1;
-  g_displaySeg[2] = s2;
-  g_displaySeg[3] = s3;
+  g_displayNext[0] = s0;
+  g_displayNext[1] = s1;
+  g_displayNext[2] = s2;
+  g_displayNext[3] = s3;
+  commitDisplayBuffer();
 }
 
 void setDisplayTemp(float tC) {
   if (isnan(tC) || tC < 0.0f || tC > 99.0f) {
-    g_displaySeg[0] = FONT_BLANK;
-    g_displaySeg[1] = FONT_BLANK;
-    g_displaySeg[2] = FONT_BLANK;
-    g_displaySeg[3] = FONT_BLANK;
+    g_displayNext[0] = FONT_BLANK;
+    g_displayNext[1] = FONT_BLANK;
+    g_displayNext[2] = FONT_BLANK;
+    g_displayNext[3] = FONT_BLANK;
+    commitDisplayBuffer();
     return;
   }
 
   int temp = (int)roundf(tC);
 
   // Dziesiątki – bez nieznaczącego zera
-  g_displaySeg[0] = (temp >= 10) ? segForDigit(temp / 10) : FONT_BLANK;
+  g_displayNext[0] = (temp >= 10) ? segForDigit(temp / 10) : FONT_BLANK;
 
   // Jedności
-  g_displaySeg[1] = segForDigit(temp % 10);
+  g_displayNext[1] = segForDigit(temp % 10);
 
   // Znak stopni i litera C
-  g_displaySeg[2] = FONT_DEGREE;
-  g_displaySeg[3] = FONT_C;
+  g_displayNext[2] = FONT_DEGREE;
+  g_displayNext[3] = FONT_C;
+  commitDisplayBuffer();
 }
 
 void setDisplayDashes() {
-  g_displaySeg[0] = FONT_MINUS;
-  g_displaySeg[1] = FONT_MINUS;
-  g_displaySeg[2] = FONT_MINUS;
-  g_displaySeg[3] = FONT_MINUS;
+  g_displayNext[0] = FONT_MINUS;
+  g_displayNext[1] = FONT_MINUS;
+  g_displayNext[2] = FONT_MINUS;
+  g_displayNext[3] = FONT_MINUS;
+  commitDisplayBuffer();
+}
+
+void commitDisplayBuffer() {
+  taskENTER_CRITICAL();
+  g_displaySeg[0] = g_displayNext[0];
+  g_displaySeg[1] = g_displayNext[1];
+  g_displaySeg[2] = g_displayNext[2];
+  g_displaySeg[3] = g_displayNext[3];
+  taskEXIT_CRITICAL();
 }
 
 // -----------------------------------------------------------------------------
@@ -426,10 +441,11 @@ void setup() {
   loadSettings();
   initDisplayHardware();
   // Ustawiamy wyświetlacz w stan stabilny PRZED startem tasków
-  g_displaySeg[0] = FONT_MINUS;
-  g_displaySeg[1] = FONT_MINUS;
-  g_displaySeg[2] = FONT_MINUS;
-  g_displaySeg[3] = FONT_MINUS;
+  g_displayNext[0] = FONT_MINUS;
+  g_displayNext[1] = FONT_MINUS;
+  g_displayNext[2] = FONT_MINUS;
+  g_displayNext[3] = FONT_MINUS;
+  commitDisplayBuffer();
   g_activeDigit = 0;
   allDigitsOff();
   write595(0);   // wyczyść 74HC595
