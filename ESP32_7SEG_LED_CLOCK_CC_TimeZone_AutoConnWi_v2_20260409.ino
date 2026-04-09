@@ -294,7 +294,7 @@ uint8_t computeAutoBrightnessFromLDR() {
   const float RAW_BRIGHT = 800;   // adjust after measurements
 
   // Normalize: 0 = dark, 1 = bright
-  float x = (ema - RAW_BRIGHT) / (RAW_DARK - RAW_BRIGHT);
+  float x = (RAW_DARK - ema) / (RAW_DARK - RAW_BRIGHT);
   if (x < 0) x = 0;
   if (x > 1) x = 1;
 
