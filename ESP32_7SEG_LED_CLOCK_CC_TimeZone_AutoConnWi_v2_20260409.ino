@@ -114,6 +114,7 @@ volatile int   g_minute = 0;
 volatile float g_tempC  = NAN;
 
 volatile bool  g_showTemp = false;
+volatile bool g_showBootId = true;
 
 volatile bool g_timeValid = false;
 volatile bool g_tempValid = false;
@@ -199,6 +200,7 @@ uint8_t segFromHexChar(char c) {
 }
 
 void showBootId4() {
+  g_showBootId = true;
   // Ostatnie 4 znaki ID, np. "A1B2C3" -> "B2C3"
   g_displayNext[0] = segFromHexChar(id[2]);
   g_displayNext[1] = segFromHexChar(id[3]);
@@ -208,6 +210,7 @@ void showBootId4() {
   commitDisplayBuffer();
 
   delay(5000);   // tylko raz przy starcie
+  g_showBootId = false;
 }
 
 void setDisplayTime(int hh, int mm, bool colonOn) {
@@ -354,6 +357,11 @@ void LogicTask(void *pv) {
   bool colon = false;
 
   for (;;) {
+    // czekaj na koniec show boot ID
+    if (g_showBootId) {
+      vTaskDelay(pdMS_TO_TICKS(50));
+      continue;
+    }
     // --- STARTUP: czekamy aż czas i temperatura będą gotowe ---
     if (!g_timeValid || !g_tempValid) {
       setDisplayDashes();
