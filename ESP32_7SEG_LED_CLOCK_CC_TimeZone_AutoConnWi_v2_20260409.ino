@@ -123,7 +123,7 @@ AutoConnectConfig portalConfig;
 AutoConnectOTA ota;
 String g_hostName;
 String g_deviceId;
-char id[7] = {0};   // 6 hex + '\0'
+char id[5] = {0};   // 4 hex + '\0'
 
 // -----------------------------------------------------------------------------
 // DS18B20
@@ -197,10 +197,10 @@ uint8_t segFromChar(char c) {
 void showBootId4() {
   g_showBootId = true;
   // Ostatnie 4 znaki ID, np. "A1B2C3" -> "B2C3"
-  g_displayNext[0] = segFromChar(id[2]);
-  g_displayNext[1] = segFromChar(id[3]);
-  g_displayNext[2] = segFromChar(id[4]);
-  g_displayNext[3] = segFromChar(id[5]);
+  g_displayNext[0] = segFromChar(id[0]);
+  g_displayNext[1] = segFromChar(id[1]);
+  g_displayNext[2] = segFromChar(id[2]);
+  g_displayNext[3] = segFromChar(id[3]);
 
   commitDisplayBuffer();
 
@@ -299,7 +299,7 @@ uint8_t computeAutoBrightnessFromLDR() {
   float b = 1.0f - x;
 
   // Clamp to comfortable range
-  const int B_MIN = 2;
+  const int B_MIN = 10;
   const int B_MAX = 250;
 
   int out = (int)(B_MIN + b * (B_MAX - B_MIN));
@@ -400,7 +400,7 @@ void WiFiTask(void *pv) {
   esp_read_mac(mac, ESP_MAC_WIFI_STA);
 
   // mac[3], mac[4], mac[5] = unikalna część
-  snprintf(id, sizeof(id), "%02X%02X%02X", mac[3], mac[4], mac[5]);
+  snprintf(id, sizeof(id), "%02X%02X", mac[4], mac[5]);
 
   g_hostName = String("esp32-clock-") + id;
   g_deviceId = id;
