@@ -290,8 +290,8 @@ uint8_t computeAutoBrightnessFromLDR() {
   // Calibration points (ADC values)
   // DARK  → high ADC
   // BRIGHT → low ADC
-  const float RAW_DARK   = 3500;  // adjust after measurements
-  const float RAW_BRIGHT = 800;   // adjust after measurements
+  const float RAW_DARK   = 3900;  // adjust after measurements
+  const float RAW_BRIGHT = 900;   // adjust after measurements
 
   // Normalize: 0 = dark, 1 = bright
   float x = (RAW_DARK - ema) / (RAW_DARK - RAW_BRIGHT);
@@ -309,7 +309,8 @@ uint8_t computeAutoBrightnessFromLDR() {
   if (out < 0) out = 0;
   if (out > 255) out = 255;
 
-  Serial.printf("LDR raw=%d  ema=%.1f  norm=%.2f  brightness=%d\n", raw, ema, x, out);
+  // uncomment for measurements
+  //Serial.printf("LDR raw=%d  ema=%.1f  norm=%.2f  brightness=%d\n", raw, ema, x, out);
 
   return (uint8_t)out;
 }
