@@ -383,6 +383,8 @@ void WiFiTask(void *pv) {
   server.on("/status", []() {
     String s;
     s.reserve(256);
+    s += "id=" + id + "\n";
+    s += "hostname=" + g_hostName + "\n";
     s += "time=" + String((int)g_hour) + ":" + String((int)g_minute) + "\n";
     s += "tempC=" + String((float)g_tempC, 1) + "\n";
     s += "brightness=" + String((int)g_brightness) + "\n";
