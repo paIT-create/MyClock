@@ -398,7 +398,6 @@ void BrightnessTask(void *pv) {
       applyBrightness(g_brightness);
     }
     vTaskDelay(pdMS_TO_TICKS(200));
-    Serial.printf("LDR raw=%d  brightness=%d\n", raw, g_brightness);
   }
 }
 
