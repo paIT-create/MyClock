@@ -197,16 +197,17 @@ uint8_t segFromHexChar(char c) {
   if (c >= 'a' && c <= 'f') return segHex[c - 'a' + 10];
   return 0;
 }
+
 void showBootId4() {
-  // bierzemy ostatnie 4 znaki ID
-  const char* p = id + 2;   // np. "A1B2C3" → "B2C3"
+  // Ostatnie 4 znaki ID, np. "A1B2C3" -> "B2C3"
+  g_displayNext[0] = segFromHexChar(id[2]);
+  g_displayNext[1] = segFromHexChar(id[3]);
+  g_displayNext[2] = segFromHexChar(id[4]);
+  g_displayNext[3] = segFromHexChar(id[5]);
 
-  setDigit(0, segFromHexChar(p[0]));
-  setDigit(1, segFromHexChar(p[1]));
-  setDigit(2, segFromHexChar(p[2]));
-  setDigit(3, segFromHexChar(p[3]));
+  commitDisplayBuffer();
 
-  delay(2000);   // tylko tutaj, jednorazowo przy starcie
+  delay(2000);   // tylko raz przy starcie
 }
 
 void setDisplayTime(int hh, int mm, bool colonOn) {
