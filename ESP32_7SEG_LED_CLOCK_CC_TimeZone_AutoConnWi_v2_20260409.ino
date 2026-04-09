@@ -359,6 +359,7 @@ void WiFiTask(void *pv) {
   portalConfig.apid          = "ESP32-Clock";
   portalConfig.psk           = "12345678";
   portalConfig.hostName      = "esp32-clock";
+  portalConfig.menuItems     = portalConfig.menuItems | AC_MENUITEM_DELETESSID;  // enable the credentials removal feature in OpenSSIDs menu
 
   portal.config(portalConfig);
   
