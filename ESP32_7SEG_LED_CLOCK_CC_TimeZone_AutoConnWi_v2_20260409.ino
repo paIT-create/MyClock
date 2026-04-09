@@ -299,7 +299,7 @@ uint8_t computeAutoBrightnessFromLDR() {
   float b = 1.0f - x;
 
   // Clamp to comfortable range
-  const int B_MIN = 10;
+  const int B_MIN = 5;
   const int B_MAX = 250;
 
   int out = (int)(B_MIN + b * (B_MAX - B_MIN));
