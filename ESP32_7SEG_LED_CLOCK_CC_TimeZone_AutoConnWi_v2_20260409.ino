@@ -113,6 +113,7 @@ WebServer server(80);
 AutoConnect portal(server);
 AutoConnectConfig portalConfig;
 AutoConnectOTA ota;
+String g_hostName;
 
 // -----------------------------------------------------------------------------
 // DS18B20
@@ -354,11 +355,19 @@ void BrightnessTask(void *pv) {
 }
 
 void WiFiTask(void *pv) {
+  uint64_t mac = ESP.getEfuseMac();
+  uint32_t macSuffix = (uint32_t)(mac & 0xFFFFFF);
+
+  char id[7];
+  snprintf(id, sizeof(id), "%06X", macSuffix);
+
+  g_hostName = String("esp32-clock-") + id;
+
   portalConfig.autoReconnect = true;
   portalConfig.retainPortal  = true;
-  portalConfig.apid          = "ESP32-Clock";
+  portalConfig.apid          = String("ESP32-Clock-") + id;
   portalConfig.psk           = "12345678";
-  portalConfig.hostName      = "esp32-clock";
+  portalConfig.hostName      = g_hostName.c_str();
   portalConfig.menuItems     = portalConfig.menuItems | AC_MENUITEM_DELETESSID;  // enable the credentials removal feature in OpenSSIDs menu
 
   portal.config(portalConfig);
@@ -381,7 +390,7 @@ void WiFiTask(void *pv) {
     if (WiFi.status() == WL_CONNECTED) {
       s += "ip=" + WiFi.localIP().toString() + "\n";
       s += "rssi=" + String(WiFi.RSSI()) + "\n";
-      s += "mdns=http://esp32-clock.local/\n";
+      s += "mdns=http://" + g_hostName + ".local/\n";
     }
     server.send(200, "text/plain", s);
   });
@@ -389,7 +398,7 @@ void WiFiTask(void *pv) {
   ota.attach(portal);
   portal.begin();
 
-  if (MDNS.begin("esp32-clock")) {
+  if (MDNS.begin(g_hostName.c_str())) {
     MDNS.addService("http", "tcp", 80);
   }
 
