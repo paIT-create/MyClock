@@ -65,7 +65,8 @@ static const uint8_t SEG_G  = 1 << 6;
 static const uint8_t SEG_DP = 1 << 7;
 
 // 7-seg font for digits 0-9 (A..G, no DP)
-static const uint8_t DIGIT_FONT[10] = {
+// Bit layout: 0bDPGFEDCBA
+static const uint8_t FONT_HEX[16] = {
   SEG_A | SEG_B | SEG_C | SEG_D | SEG_E | SEG_F,         // 0
   SEG_B | SEG_C,                                         // 1
   SEG_A | SEG_B | SEG_D | SEG_E | SEG_G,                 // 2
@@ -75,33 +76,20 @@ static const uint8_t DIGIT_FONT[10] = {
   SEG_A | SEG_C | SEG_D | SEG_E | SEG_F | SEG_G,         // 6
   SEG_A | SEG_B | SEG_C,                                 // 7
   SEG_A | SEG_B | SEG_C | SEG_D | SEG_E | SEG_F | SEG_G, // 8
-  SEG_A | SEG_B | SEG_C | SEG_D | SEG_F | SEG_G          // 9
+  SEG_A | SEG_B | SEG_C | SEG_D | SEG_F | SEG_G,         // 9
+  SEG_A | SEG_B | SEG_C | SEG_E | SEG_F | SEG_G,         // A
+  SEG_C | SEG_D | SEG_E | SEG_F | SEG_G,                 // b
+  SEG_A | SEG_D | SEG_E | SEG_F,                         // C
+  SEG_B | SEG_C | SEG_D | SEG_E | SEG_G,                 // d
+  SEG_A | SEG_D | SEG_E | SEG_F | SEG_G,                 // E
+  SEG_A | SEG_E | SEG_F | SEG_G                          // F
 };
 
-static const uint8_t FONT_MINUS = SEG_G;
-static const uint8_t FONT_BLANK = 0;
 // Znaki specjalne do temperatury (dokładne maski bitowe)
-static const uint8_t FONT_DEGREE = B01100011;  // znak stopni °
-static const uint8_t FONT_C      = B00111001;  // litera C
-// 7‑seg: 0b0GFEDCBA (przykład)
-static const uint8_t segHex[16] = {
-  0b00111111, // 0
-  0b00000110, // 1
-  0b01011011, // 2
-  0b01001111, // 3
-  0b01100110, // 4
-  0b01101101, // 5
-  0b01111101, // 6
-  0b00000111, // 7
-  0b01111111, // 8
-  0b01101111, // 9
-  0b01110111, // A
-  0b01111100, // b
-  0b00111001, // C
-  0b01011110, // d
-  0b01111001, // E
-  0b01110001  // F
-};
+static const uint8_t FONT_MINUS  = SEG_G;
+static const uint8_t FONT_BLANK  = 0;
+static const uint8_t FONT_DEGREE = SEG_B | SEG_C | SEG_F | SEG_G; // °
+static const uint8_t FONT_C      = SEG_A | SEG_D | SEG_E | SEG_F; // C
 
 // -----------------------------------------------------------------------------
 // Shared state (written by tasks, read by DisplayTask)
@@ -187,25 +175,29 @@ void refreshDisplayOnce() {
 // -----------------------------------------------------------------------------
 // Formatting: write to g_displaySeg[]
 // -----------------------------------------------------------------------------
-static inline uint8_t segForDigit(int d) {
-  if (d < 0 || d > 9) return FONT_BLANK;
-  return DIGIT_FONT[d];
-}
+uint8_t segFromChar(char c) {
+  // cyfry
+  if (c >= '0' && c <= '9') return FONT_HEX[c - '0'];
 
-uint8_t segFromHexChar(char c) {
-  if (c >= '0' && c <= '9') return segHex[c - '0'];
-  if (c >= 'A' && c <= 'F') return segHex[c - 'A' + 10];
-  if (c >= 'a' && c <= 'f') return segHex[c - 'a' + 10];
-  return 0;
+  // hex
+  if (c >= 'A' && c <= 'F') return FONT_HEX[c - 'A' + 10];
+  if (c >= 'a' && c <= 'f') return FONT_HEX[c - 'a' + 10];
+
+  // znaki specjalne
+  if (c == '-') return FONT_MINUS;
+  if (c == 'C') return FONT_C;
+  if (c == ' ') return FONT_BLANK;
+
+  return FONT_BLANK;
 }
 
 void showBootId4() {
   g_showBootId = true;
   // Ostatnie 4 znaki ID, np. "A1B2C3" -> "B2C3"
-  g_displayNext[0] = segFromHexChar(id[2]);
-  g_displayNext[1] = segFromHexChar(id[3]);
-  g_displayNext[2] = segFromHexChar(id[4]);
-  g_displayNext[3] = segFromHexChar(id[5]);
+  g_displayNext[0] = segFromChar(id[2]);
+  g_displayNext[1] = segFromChar(id[3]);
+  g_displayNext[2] = segFromChar(id[4]);
+  g_displayNext[3] = segFromChar(id[5]);
 
   commitDisplayBuffer();
 
@@ -214,10 +206,10 @@ void showBootId4() {
 }
 
 void setDisplayTime(int hh, int mm, bool colonOn) {
-  uint8_t s0 = (hh >= 10) ? segForDigit(hh / 10) : FONT_BLANK;
-  uint8_t s1 = segForDigit(hh % 10);
-  uint8_t s2 = segForDigit(mm / 10);
-  uint8_t s3 = segForDigit(mm % 10);
+  uint8_t s0 = (hh >= 10) ? segFromChar(hh / 10) : FONT_BLANK;
+  uint8_t s1 = segFromChar(hh % 10);
+  uint8_t s2 = segFromChar(mm / 10);
+  uint8_t s3 = segFromChar(mm % 10);
 
   // Colon simulation: DP on digit1 (adjust if you prefer other digit)
   if (colonOn) s1 |= SEG_DP;
@@ -243,10 +235,10 @@ void setDisplayTemp(float tC) {
   int temp = (int)roundf(tC);
 
   // Dziesiątki – bez nieznaczącego zera
-  g_displayNext[0] = (temp >= 10) ? segForDigit(temp / 10) : FONT_BLANK;
+  g_displayNext[0] = (temp >= 10) ? segFromChar(temp / 10) : FONT_BLANK;
 
   // Jedności
-  g_displayNext[1] = segForDigit(temp % 10);
+  g_displayNext[1] = segFromChar(temp % 10);
 
   // Znak stopni i litera C
   g_displayNext[2] = FONT_DEGREE;
