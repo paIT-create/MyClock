@@ -207,7 +207,7 @@ void showBootId4() {
 
   commitDisplayBuffer();
 
-  delay(2000);   // tylko raz przy starcie
+  delay(5000);   // tylko raz przy starcie
 }
 
 void setDisplayTime(int hh, int mm, bool colonOn) {
@@ -404,6 +404,8 @@ void WiFiTask(void *pv) {
   g_hostName = String("esp32-clock-") + id;
   g_deviceId = id;
 
+  showBootId4();
+
   portalConfig.autoReconnect = true;
   portalConfig.retainPortal  = true;
   portalConfig.apid          = String("ESP32-Clock-") + id;
@@ -514,8 +516,6 @@ void setup() {
 
   sensors.begin();
   sensors.setWaitForConversion(false);
-
-  showBootId4();
 
   setupTime();
 
