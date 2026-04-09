@@ -361,7 +361,14 @@ void WiFiTask(void *pv) {
   portalConfig.hostName      = "esp32-clock";
 
   portal.config(portalConfig);
-
+  
+  // --- ROOT -> /status redirect (HOME button fix) ---
+  server.on("/", HTTP_GET, []() {
+    server.sendHeader("Location", "/status", true);
+    server.send(302, "text/plain", "");
+  });
+  
+  // --- Status endpoint ---
   server.on("/status", []() {
     String s;
     s.reserve(256);
