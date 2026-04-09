@@ -88,7 +88,7 @@ static const uint8_t FONT_HEX[16] = {
 // Znaki specjalne do temperatury (dokładne maski bitowe)
 static const uint8_t FONT_MINUS  = SEG_G;
 static const uint8_t FONT_BLANK  = 0;
-static const uint8_t FONT_DEGREE = SEG_B | SEG_C | SEG_F | SEG_G; // °
+static const uint8_t FONT_DEGREE = SEG_A | SEG_B | SEG_F | SEG_G; // °
 static const uint8_t FONT_C      = SEG_A | SEG_D | SEG_E | SEG_F; // C
 
 // -----------------------------------------------------------------------------
@@ -181,10 +181,11 @@ static inline uint8_t segForDigit(int d) {
 }
 
 uint8_t segFromChar(char c) {
+  // cyfry
+  if (c >= '0' && c <= '9') return FONT_HEX[c - '0'];
   // hex
   if (c >= 'A' && c <= 'F') return FONT_HEX[c - 'A' + 10];
   if (c >= 'a' && c <= 'f') return FONT_HEX[c - 'a' + 10];
-
   // znaki specjalne
   if (c == '-') return FONT_MINUS;
   if (c == 'C') return FONT_C;
