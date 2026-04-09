@@ -83,6 +83,25 @@ static const uint8_t FONT_BLANK = 0;
 // Znaki specjalne do temperatury (dokładne maski bitowe)
 static const uint8_t FONT_DEGREE = B01100011;  // znak stopni °
 static const uint8_t FONT_C      = B00111001;  // litera C
+// 7‑seg: 0b0GFEDCBA (przykład)
+static const uint8_t segHex[16] = {
+  0b00111111, // 0
+  0b00000110, // 1
+  0b01011011, // 2
+  0b01001111, // 3
+  0b01100110, // 4
+  0b01101101, // 5
+  0b01111101, // 6
+  0b00000111, // 7
+  0b01111111, // 8
+  0b01101111, // 9
+  0b01110111, // A
+  0b01111100, // b
+  0b00111001, // C
+  0b01011110, // d
+  0b01111001, // E
+  0b01110001  // F
+};
 
 // -----------------------------------------------------------------------------
 // Shared state (written by tasks, read by DisplayTask)
@@ -115,6 +134,7 @@ AutoConnectConfig portalConfig;
 AutoConnectOTA ota;
 String g_hostName;
 String g_deviceId;
+char id[7] = {0};   // 6 hex + '\0'
 
 // -----------------------------------------------------------------------------
 // DS18B20
@@ -169,6 +189,24 @@ void refreshDisplayOnce() {
 static inline uint8_t segForDigit(int d) {
   if (d < 0 || d > 9) return FONT_BLANK;
   return DIGIT_FONT[d];
+}
+
+uint8_t segFromHexChar(char c) {
+  if (c >= '0' && c <= '9') return segHex[c - '0'];
+  if (c >= 'A' && c <= 'F') return segHex[c - 'A' + 10];
+  if (c >= 'a' && c <= 'f') return segHex[c - 'a' + 10];
+  return 0;
+}
+void showBootId4() {
+  // bierzemy ostatnie 4 znaki ID
+  const char* p = id + 2;   // np. "A1B2C3" → "B2C3"
+
+  setDigit(0, segFromHexChar(p[0]));
+  setDigit(1, segFromHexChar(p[1]));
+  setDigit(2, segFromHexChar(p[2]));
+  setDigit(3, segFromHexChar(p[3]));
+
+  delay(2000);   // tylko tutaj, jednorazowo przy starcie
 }
 
 void setDisplayTime(int hh, int mm, bool colonOn) {
@@ -360,7 +398,6 @@ void WiFiTask(void *pv) {
   esp_read_mac(mac, ESP_MAC_WIFI_STA);
 
   // mac[3], mac[4], mac[5] = unikalna część
-  char id[7];
   snprintf(id, sizeof(id), "%02X%02X%02X", mac[3], mac[4], mac[5]);
 
   g_hostName = String("esp32-clock-") + id;
@@ -476,6 +513,8 @@ void setup() {
 
   sensors.begin();
   sensors.setWaitForConversion(false);
+
+  showBootId4();
 
   setupTime();
 
