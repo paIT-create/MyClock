@@ -206,7 +206,7 @@ void showBootId4() {
 }
 
 void setDisplayTime(int hh, int mm, bool colonOn) {
-  uint8_t s0 = (hh >= 10) ? segFromChar(hh / 10) : FONT_BLANK;
+  uint8_t s0 = (hh >= 10) ? FONT_HEX[hh / 10] : FONT_BLANK;
   uint8_t s1 = segFromChar(hh % 10);
   uint8_t s2 = segFromChar(mm / 10);
   uint8_t s3 = segFromChar(mm % 10);
