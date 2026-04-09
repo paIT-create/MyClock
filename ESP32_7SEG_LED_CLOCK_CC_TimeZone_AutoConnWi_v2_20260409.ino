@@ -355,11 +355,12 @@ void BrightnessTask(void *pv) {
 }
 
 void WiFiTask(void *pv) {
-  uint64_t mac = ESP.getEfuseMac();
-  uint32_t macSuffix = (uint32_t)(mac & 0xFFFFFF);
+  uint8_t mac[6];
+  esp_read_mac(mac, ESP_MAC_WIFI_STA);
 
+  // mac[3], mac[4], mac[5] = unikalna część
   char id[7];
-  snprintf(id, sizeof(id), "%06X", macSuffix);
+  snprintf(id, sizeof(id), "%02X%02X%02X", mac[3], mac[4], mac[5]);
 
   g_hostName = String("esp32-clock-") + id;
 
