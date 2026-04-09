@@ -114,6 +114,7 @@ AutoConnect portal(server);
 AutoConnectConfig portalConfig;
 AutoConnectOTA ota;
 String g_hostName;
+String g_deviceId;
 
 // -----------------------------------------------------------------------------
 // DS18B20
@@ -363,6 +364,7 @@ void WiFiTask(void *pv) {
   snprintf(id, sizeof(id), "%02X%02X%02X", mac[3], mac[4], mac[5]);
 
   g_hostName = String("esp32-clock-") + id;
+  g_deviceId = id;
 
   portalConfig.autoReconnect = true;
   portalConfig.retainPortal  = true;
@@ -383,7 +385,7 @@ void WiFiTask(void *pv) {
   server.on("/status", []() {
     String s;
     s.reserve(256);
-    s += "id=" + id + "\n";
+    s += "id=" + g_deviceId + "\n";
     s += "hostname=" + g_hostName + "\n";
     s += "time=" + String((int)g_hour) + ":" + String((int)g_minute) + "\n";
     s += "tempC=" + String((float)g_tempC, 1) + "\n";
