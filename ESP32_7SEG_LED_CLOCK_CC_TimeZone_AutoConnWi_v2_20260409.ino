@@ -262,7 +262,7 @@ uint8_t computeAutoBrightnessFromLDR() {
   float b = 1.0f - x;
 
   // Clamp to comfortable range
-  const int B_MIN = 1;
+  const int B_MIN = 2;
   const int B_MAX = 250;
 
   int out = (int)(B_MIN + b * (B_MAX - B_MIN));
@@ -278,7 +278,7 @@ void DisplayTask(void *pv) {
   // Highest priority, Core 0: guarantees no blanking.
   for (;;) {
     refreshDisplayOnce();
-    vTaskDelay(5); // ~5ms tick; adjust if needed
+    vTaskDelay(3); // ~3ms tick; adjust if needed
   }
 }
 
