@@ -175,10 +175,12 @@ void refreshDisplayOnce() {
 // -----------------------------------------------------------------------------
 // Formatting: write to g_displaySeg[]
 // -----------------------------------------------------------------------------
-uint8_t segFromChar(char c) {
-  // cyfry
-  if (c >= '0' && c <= '9') return FONT_HEX[c - '0'];
+static inline uint8_t segForDigit(int d) {
+  if (d < 0 || d > 9) return FONT_BLANK;
+  return FONT_HEX[d];
+}
 
+uint8_t segFromChar(char c) {
   // hex
   if (c >= 'A' && c <= 'F') return FONT_HEX[c - 'A' + 10];
   if (c >= 'a' && c <= 'f') return FONT_HEX[c - 'a' + 10];
@@ -206,10 +208,10 @@ void showBootId4() {
 }
 
 void setDisplayTime(int hh, int mm, bool colonOn) {
-  uint8_t s0 = (hh >= 10) ? FONT_HEX[hh / 10] : FONT_BLANK;
-  uint8_t s1 = segFromChar(hh % 10);
-  uint8_t s2 = segFromChar(mm / 10);
-  uint8_t s3 = segFromChar(mm % 10);
+  uint8_t s0 = (hh >= 10) ? segForDigit(hh / 10) : FONT_BLANK;
+  uint8_t s1 = segForDigit(hh % 10);
+  uint8_t s2 = segForDigit(mm / 10);
+  uint8_t s3 = segForDigit(mm % 10);
 
   // Colon simulation: DP on digit1 (adjust if you prefer other digit)
   if (colonOn) s1 |= SEG_DP;
@@ -235,11 +237,9 @@ void setDisplayTemp(float tC) {
   int temp = (int)roundf(tC);
 
   // Dziesiątki – bez nieznaczącego zera
-  g_displayNext[0] = (temp >= 10) ? segFromChar(temp / 10) : FONT_BLANK;
-
+  g_displayNext[0] = (temp >= 10) ? segForDigit(temp / 10) : FONT_BLANK;
   // Jedności
-  g_displayNext[1] = segFromChar(temp % 10);
-
+  g_displayNext[1] = segForDigit(temp % 10);
   // Znak stopni i litera C
   g_displayNext[2] = FONT_DEGREE;
   g_displayNext[3] = FONT_C;
