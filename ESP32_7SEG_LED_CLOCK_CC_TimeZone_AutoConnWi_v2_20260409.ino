@@ -279,32 +279,38 @@ static inline void applyBrightness(uint8_t logical) {
 }
 
 uint8_t computeAutoBrightnessFromLDR() {
-  // Read ADC (0..4095). You may need to invert depending on your LDR divider.
+  // LDR is at the bottom (to GND), 10k at the top (to +3.3V)
+  // → dark = high ADC value, bright = low ADC value
   int raw = analogRead(PIN_LDR_ADC);
 
-  // Simple smoothing (EMA)
+  // Smooth the reading (EMA)
   static float ema = 0;
   ema = 0.9f * ema + 0.1f * raw;
 
-  // Map to brightness: darker -> brighter, brighter -> dimmer (typical for clocks)
-  // Adjust these two points after first test:
-  const float RAW_DARK  = 600;   // room dark
-  const float RAW_BRIGHT = 3000; // daylight
+  // Calibration points (ADC values)
+  // DARK  → high ADC
+  // BRIGHT → low ADC
+  const float RAW_DARK   = 3500;  // adjust after measurements
+  const float RAW_BRIGHT = 800;   // adjust after measurements
 
-  float x = (ema - RAW_DARK) / (RAW_BRIGHT - RAW_DARK);
+  // Normalize: 0 = dark, 1 = bright
+  float x = (ema - RAW_BRIGHT) / (RAW_DARK - RAW_BRIGHT);
   if (x < 0) x = 0;
   if (x > 1) x = 1;
 
-  // Invert: bright room => lower brightness
-  float b = 1.0f - x;
+  // Bright room → higher brightness
+  float b = x;
 
   // Clamp to comfortable range
-  const int B_MIN = 5;
-  const int B_MAX = 250;
+  const int B_MIN = 5;    // darkest room
+  const int B_MAX = 250;  // daylight
 
   int out = (int)(B_MIN + b * (B_MAX - B_MIN));
   if (out < 0) out = 0;
   if (out > 255) out = 255;
+
+  Serial.printf("LDR raw=%d  ema=%.1f  norm=%.2f  brightness=%d\n", raw, ema, x, out);
+
   return (uint8_t)out;
 }
 
