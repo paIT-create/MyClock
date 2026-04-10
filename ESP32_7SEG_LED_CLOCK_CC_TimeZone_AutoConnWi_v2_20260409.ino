@@ -507,39 +507,127 @@ void WiFiTask(void *pv) {
     server.send(200, "text/plain", s);
   });
   // --- Config endpoint ---
+  // server.on("/config", HTTP_GET, []() {
+  //   String html;
+  //   html.reserve(3000);
+
+  //   html += "<!DOCTYPE html><html><head><meta charset='UTF-8'>";
+  //   html += "<meta name='viewport' content='width=device-width, initial-scale=1'>";
+  //   html += "<title>Clock Config</title>";
+  //   html += "<style>";
+  //   html += "body{font-family:sans-serif;background:#f5f5f5;margin:20px;}";
+  //   html += ".card{background:white;padding:20px;border-radius:12px;max-width:420px;margin:auto;box-shadow:0 2px 8px rgba(0,0,0,0.15);}";
+  //   html += "h2{text-align:center;margin-top:0;}";
+  //   html += "label{display:block;margin-top:20px;font-weight:bold;}";
+  //   html += ".value{font-size:14px;color:#444;margin-top:4px;}";
+  //   html += "input[type=range]{width:100%;}";
+  //   html += ".btn{margin-top:25px;width:100%;padding:12px;border:none;border-radius:8px;font-size:16px;cursor:pointer;}";
+  //   html += ".save{background:#0078ff;color:white;}";
+  //   html += ".reset{background:#ddd;color:#333;margin-top:10px;}";
+  //   html += "</style>";
+
+  //   html += "<script>";
+  //   html += "function save(){";
+  //   html += "  var b=document.getElementById('bright').value;";
+  //   html += "  var a=document.getElementById('auto').checked?1:0;";
+  //   html += "  fetch('/set?bright='+b+'&auto='+a).then(()=>alert('Zapisano.'));";
+  //   html += "}";
+  //   html += "function reset(){";
+  //   html += "  fetch('/reset').then(()=>location.reload());";
+  //   html += "}";
+  //   html += "</script>";
+
+  //   html += "</head><body>";
+  //   html += "<div class='card'>";
+  //   html += "<h2>Ustawienia</h2>";
+
+  //   // Jasność
+  //   html += "<label>Jasność</label>";
+  //   html += "<input type='range' id='bright' min='0' max='255' value='" + String(g_brightness) + "'>";
+  //   html += "<div class='value'>Aktualnie: " + String(g_brightness) + "</div>";
+
+  //   // Auto brightness
+  //   html += "<label>Auto jasność</label>";
+  //   html += "<input type='checkbox' id='auto' " + String(g_autoBrightness ? "checked" : "") + ">";
+
+  //   // Buttons
+  //   html += "<button class='btn save' onclick='save()'>Zapisz</button>";
+  //   html += "<button class='btn reset' onclick='reset()'>Reset</button>";
+
+  //   html += "</div></body></html>";
+
+  //   server.send(200, "text/html", html);
+  // });
   server.on("/config", HTTP_GET, []() {
     String html;
-    html.reserve(3000);
+    html.reserve(6000);
 
     html += "<!DOCTYPE html><html><head><meta charset='UTF-8'>";
     html += "<meta name='viewport' content='width=device-width, initial-scale=1'>";
     html += "<title>Clock Config</title>";
+
+    // ---------- STYLE ----------
     html += "<style>";
-    html += "body{font-family:sans-serif;background:#f5f5f5;margin:20px;}";
-    html += ".card{background:white;padding:20px;border-radius:12px;max-width:420px;margin:auto;box-shadow:0 2px 8px rgba(0,0,0,0.15);}";
-    html += "h2{text-align:center;margin-top:0;}";
-    html += "label{display:block;margin-top:20px;font-weight:bold;}";
-    html += ".value{font-size:14px;color:#444;margin-top:4px;}";
-    html += "input[type=range]{width:100%;}";
-    html += ".btn{margin-top:25px;width:100%;padding:12px;border:none;border-radius:8px;font-size:16px;cursor:pointer;}";
-    html += ".save{background:#0078ff;color:white;}";
-    html += ".reset{background:#ddd;color:#333;margin-top:10px;}";
+    html += "body{background:#0d0d0f;color:#e0e0e0;font-family:Segoe UI,Roboto,Arial,sans-serif;margin:0;padding:20px;}";
+    html += ".card{background:#1a1b1f;padding:25px;border-radius:14px;max-width:480px;margin:20px auto;";
+    html += "box-shadow:0 0 25px rgba(0,0,0,0.6),0 0 10px rgba(0,150,255,0.2);}";
+    html += "h2{text-align:center;margin-top:0;color:#6ab8ff;text-shadow:0 0 8px #0066ff;}";
+    html += "label{display:block;margin-top:22px;font-weight:600;color:#9fc9ff;}";
+    html += ".value{font-size:14px;color:#aaa;margin-top:6px;}";
+    html += "input[type=range]{width:100%;margin-top:10px;}";
+    html += "input[type=checkbox]{transform:scale(1.4);margin-top:12px;}";
+    html += ".btn{margin-top:28px;width:100%;padding:14px;border:none;border-radius:10px;font-size:17px;";
+    html += "cursor:pointer;font-weight:600;transition:0.25s;}";
+    html += ".save{background:#0078ff;color:white;box-shadow:0 0 12px #0078ff80;}";
+    html += ".save:hover{background:#0a8bff;box-shadow:0 0 18px #0a8bffcc;}";
+    html += ".reset{background:#333;color:#ccc;margin-top:12px;}";
+    html += ".reset:hover{background:#444;color:white;}";
+    html += ".statusBox{margin-top:30px;padding:15px;background:#111;border-radius:10px;";
+    html += "box-shadow:inset 0 0 12px rgba(0,150,255,0.15);}";
+    html += ".statusLine{margin:6px 0;font-size:14px;color:#ccc;}";
+    html += ".titleSmall{color:#6ab8ff;font-size:16px;margin-bottom:10px;text-shadow:0 0 6px #0066ff;}";
     html += "</style>";
 
+    // ---------- SCRIPT ----------
     html += "<script>";
     html += "function save(){";
     html += "  var b=document.getElementById('bright').value;";
     html += "  var a=document.getElementById('auto').checked?1:0;";
-    html += "  fetch('/set?bright='+b+'&auto='+a).then(()=>alert('Zapisano.'));";
+    html += "  fetch('/set?bright='+b+'&auto='+a).then(()=>{";
+    html += "    alert('Zapisano ustawienia');";
+    html += "    loadStatus();";
+    html += "  });";
     html += "}";
+
     html += "function reset(){";
-    html += "  fetch('/reset').then(()=>location.reload());";
+    html += "  fetch('/reset').then(()=>{";
+    html += "    alert('Przywrócono ustawienia domyślne');";
+    html += "    location.reload();";
+    html += "  });";
     html += "}";
+
+    // Pobieranie danych ze /status
+    html += "function loadStatus(){";
+    html += "  fetch('/status').then(r=>r.text()).then(t=>{";
+    html += "    let lines=t.trim().split('\\n');";
+    html += "    let box=document.getElementById('statusBox');";
+    html += "    box.innerHTML='';";
+    html += "    lines.forEach(l=>{";
+    html += "      let div=document.createElement('div');";
+    html += "      div.className='statusLine';";
+    html += "      div.textContent=l;";
+    html += "      box.appendChild(div);";
+    html += "    });";
+    html += "  });";
+    html += "}";
+    html += "window.onload=loadStatus;";
     html += "</script>";
 
     html += "</head><body>";
+
+    // ---------- BODY ----------
     html += "<div class='card'>";
-    html += "<h2>Ustawienia</h2>";
+    html += "<h2>Ustawienia Zegara</h2>";
 
     // Jasność
     html += "<label>Jasność</label>";
@@ -551,13 +639,20 @@ void WiFiTask(void *pv) {
     html += "<input type='checkbox' id='auto' " + String(g_autoBrightness ? "checked" : "") + ">";
 
     // Buttons
-    html += "<button class='btn save' onclick='save()'>Zapisz</button>";
-    html += "<button class='btn reset' onclick='reset()'>Reset</button>";
+    html += "<button class='btn save' onclick='save()'>💾 Zapisz</button>";
+    html += "<button class='btn reset' onclick='reset()'>↺ Reset</button>";
+
+    // Status box
+    html += "<div class='statusBox'>";
+    html += "<div class='titleSmall'>Status urządzenia</div>";
+    html += "<div id='statusBox'>Ładowanie...</div>";
+    html += "</div>";
 
     html += "</div></body></html>";
 
     server.send(200, "text/html", html);
   });
+
   // --- Set endpoint ---
   server.on("/set", []() {
     if (server.hasArg("bright")) {
