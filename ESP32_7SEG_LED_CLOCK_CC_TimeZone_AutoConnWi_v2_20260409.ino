@@ -85,11 +85,13 @@ static const uint8_t FONT_HEX[16] = {
   SEG_A | SEG_E | SEG_F | SEG_G                          // F
 };
 
-// Znaki specjalne do temperatury (dokładne maski bitowe)
+// Znaki specjalne do temperatury itp. (dokładne maski bitowe)
 static const uint8_t FONT_MINUS  = SEG_G;
 static const uint8_t FONT_BLANK  = 0;
 static const uint8_t FONT_DEGREE = SEG_A | SEG_B | SEG_F | SEG_G; // °
 static const uint8_t FONT_C      = SEG_A | SEG_D | SEG_E | SEG_F; // C
+static const uint8_t FONT_o = SEG_C | SEG_D | SEG_E | SEG_G;
+static const uint8_t FONT_t = SEG_D | SEG_E | SEG_F | SEG_G;
 
 // -----------------------------------------------------------------------------
 // Shared state (written by tasks, read by DisplayTask)
@@ -108,6 +110,9 @@ volatile bool g_timeValid = false;
 volatile bool g_tempValid = false;
 
 uint8_t g_displayNext[4];
+
+// OTA status flag
+volatile bool g_otaActive = false;
 
 // Brightness control
 Preferences prefs;
@@ -320,9 +325,29 @@ uint8_t computeAutoBrightnessFromLDR() {
 // -----------------------------------------------------------------------------
 void DisplayTask(void *pv) {
   // Highest priority, Core 0: guarantees no blanking.
+  // for (;;) {
+  //   refreshDisplayOnce();
+  //   vTaskDelay(3); // ~3ms tick; adjust if needed
+  // }
   for (;;) {
+    if (g_otaActive) {
+      // Static OTA message: "otA"
+      g_displaySeg[0] = FONT_o;
+      g_displaySeg[1] = FONT_t;
+      g_displaySeg[2] = FONT_HEX[10]; // A
+      g_displaySeg[3] = FONT_BLANK;
+  // Slow, stable multiplexing during OTA
+      for (int i = 0; i < 4; i++) {
+        allDigitsOff();
+        write595(g_displaySeg[i]);
+        digitOn(i);
+        vTaskDelay(5);
+      }
+      continue;
+    }
+  // Normal mode
     refreshDisplayOnce();
-    vTaskDelay(3); // ~3ms tick; adjust if needed
+    vTaskDelay(3);
   }
 }
 
@@ -422,6 +447,14 @@ void WiFiTask(void *pv) {
   portalConfig.menuItems     = portalConfig.menuItems | AC_MENUITEM_DELETESSID;  // enable the credentials removal feature in OpenSSIDs menu
 
   portal.config(portalConfig);
+  
+  // OTA callbacks
+  ota.onStart([]() {
+    g_otaActive = true;
+  });
+  ota.onEnd([]() {
+    g_otaActive = false;
+  });
   
   // --- ROOT -> /status redirect (HOME button fix) ---
   server.on("/", HTTP_GET, []() {
