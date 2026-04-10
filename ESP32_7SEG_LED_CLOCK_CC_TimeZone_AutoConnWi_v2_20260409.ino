@@ -339,7 +339,7 @@ void DisplayTask(void *pv) {
   
   // for (;;) {
   //   refreshDisplayOnce();
-  //   vTaskDelay(3); // ~3ms tick; adjust if needed
+  //   vTaskDelay(1); // ~1ms tick; adjust if needed
   // }
   
   // for (;;) {
@@ -371,7 +371,7 @@ void DisplayTask(void *pv) {
     
     // Normal mode
     refreshDisplayOnce();
-    vTaskDelay(3);
+    vTaskDelay(1);
   }
 }
 
@@ -506,101 +506,6 @@ void WiFiTask(void *pv) {
     server.send(200, "text/plain", s);
   });
   // --- Config endpoint ---
-  // server.on("/config", HTTP_GET, []() {
-  //   String html;
-  //   html.reserve(6000);
-
-  //   html += "<!DOCTYPE html><html><head><meta charset='UTF-8'>";
-  //   html += "<meta name='viewport' content='width=device-width, initial-scale=1'>";
-  //   html += "<title>Clock Config</title>";
-
-  //   // ---------- STYLE ----------
-  //   html += "<style>";
-  //   html += "body{background:#0d0d0f;color:#e0e0e0;font-family:Segoe UI,Roboto,Arial,sans-serif;margin:0;padding:20px;}";
-  //   html += ".card{background:#1a1b1f;padding:25px;border-radius:14px;max-width:480px;margin:20px auto;";
-  //   html += "box-shadow:0 0 25px rgba(0,0,0,0.6),0 0 10px rgba(0,150,255,0.2);}";
-  //   html += "h2{text-align:center;margin-top:0;color:#6ab8ff;text-shadow:0 0 8px #0066ff;}";
-  //   html += "label{display:block;margin-top:22px;font-weight:600;color:#9fc9ff;}";
-  //   html += ".value{font-size:14px;color:#aaa;margin-top:6px;}";
-  //   html += "input[type=range]{width:100%;margin-top:10px;}";
-  //   html += "input[type=checkbox]{transform:scale(1.4);margin-top:12px;}";
-  //   html += ".btn{margin-top:28px;width:100%;padding:14px;border:none;border-radius:10px;font-size:17px;";
-  //   html += "cursor:pointer;font-weight:600;transition:0.25s;}";
-  //   html += ".save{background:#0078ff;color:white;box-shadow:0 0 12px #0078ff80;}";
-  //   html += ".save:hover{background:#0a8bff;box-shadow:0 0 18px #0a8bffcc;}";
-  //   html += ".reset{background:#333;color:#ccc;margin-top:12px;}";
-  //   html += ".reset:hover{background:#444;color:white;}";
-  //   html += ".statusBox{margin-top:30px;padding:15px;background:#111;border-radius:10px;";
-  //   html += "box-shadow:inset 0 0 12px rgba(0,150,255,0.15);}";
-  //   html += ".statusLine{margin:6px 0;font-size:14px;color:#ccc;}";
-  //   html += ".titleSmall{color:#6ab8ff;font-size:16px;margin-bottom:10px;text-shadow:0 0 6px #0066ff;}";
-  //   html += "</style>";
-
-  //   // ---------- SCRIPT ----------
-  //   html += "<script>";
-  //   html += "function save(){";
-  //   html += "  var b=document.getElementById('bright').value;";
-  //   html += "  var a=document.getElementById('auto').checked?1:0;";
-  //   html += "  fetch('/set?bright='+b+'&auto='+a).then(()=>{";
-  //   html += "    alert('Zapisano ustawienia');";
-  //   html += "    loadStatus();";
-  //   html += "  });";
-  //   html += "}";
-
-  //   html += "function reset(){";
-  //   html += "  fetch('/reset').then(()=>{";
-  //   html += "    alert('Przywrócono ustawienia domyślne');";
-  //   html += "    location.reload();";
-  //   html += "  });";
-  //   html += "}";
-
-  //   // Pobieranie danych ze /status
-  //   html += "function loadStatus(){";
-  //   html += "  fetch('/status').then(r=>r.text()).then(t=>{";
-  //   html += "    let lines=t.trim().split('\\n');";
-  //   html += "    let box=document.getElementById('statusBox');";
-  //   html += "    box.innerHTML='';";
-  //   html += "    lines.forEach(l=>{";
-  //   html += "      let div=document.createElement('div');";
-  //   html += "      div.className='statusLine';";
-  //   html += "      div.textContent=l;";
-  //   html += "      box.appendChild(div);";
-  //   html += "    });";
-  //   html += "  });";
-  //   html += "}";
-  //   html += "window.onload=loadStatus;";
-  //   html += "</script>";
-
-  //   html += "</head><body>";
-
-  //   // ---------- BODY ----------
-  //   html += "<div class='card'>";
-  //   html += "<h2>Ustawienia Zegara</h2>";
-
-  //   // Jasność
-  //   html += "<label>Jasność</label>";
-  //   html += "<input type='range' id='bright' min='0' max='255' value='" + String(g_brightness) + "'>";
-  //   html += "<div class='value'>Aktualnie: " + String(g_brightness) + "</div>";
-
-  //   // Auto brightness
-  //   html += "<label>Auto jasność</label>";
-  //   html += "<input type='checkbox' id='auto' " + String(g_autoBrightness ? "checked" : "") + ">";
-
-  //   // Buttons
-  //   html += "<button class='btn save' onclick='save()'>💾 Zapisz</button>";
-  //   html += "<button class='btn reset' onclick='reset()'>↺ Reset</button>";
-
-  //   // Status box
-  //   html += "<div class='statusBox'>";
-  //   html += "<div class='titleSmall'>Status urządzenia</div>";
-  //   html += "<div id='statusBox'>Ładowanie...</div>";
-  //   html += "</div>";
-
-  //   html += "</div></body></html>";
-
-  //   server.send(200, "text/html", html);
-  // });
-
   server.on("/config", HTTP_GET, []() {
     String html;
     html.reserve(9000);
@@ -656,6 +561,14 @@ void WiFiTask(void *pv) {
     html += ".statusLine{margin:6px 0;font-size:14px;color:#c0c0c0;font-family:Consolas,monospace;";
     html += "text-shadow:0 0 6px #0040aa;}";
 
+    // BIG CLOCK + TEMP
+    html += ".bigClockBox{text-align:center;margin-top:10px;margin-bottom:25px;}";
+    html += ".bigClock{font-size:48px;font-weight:700;color:#6ab8ff;";
+    html += "text-shadow:0 0 12px #0088ff,0 0 25px #0066ff,0 0 40px #0044aa;";
+    html += "letter-spacing:2px;margin-bottom:10px;}";
+    html += ".bigTemp{font-size:32px;font-weight:600;color:#ffdd88;";
+    html += "text-shadow:0 0 12px #ffaa00,0 0 25px #ff8800,0 0 40px #cc6600;}";
+
     html += "</style>";
 
     // ---------- SCRIPT ----------
@@ -691,6 +604,59 @@ void WiFiTask(void *pv) {
     html += "  });";
     html += "}";
 
+    let sec = 0;
+    let lastMinute = "";
+    let lastHour = "";
+
+    function updateClockDisplay() {
+      let hh = lastHour;
+      let mm = lastMinute;
+      let ss = sec.toString().padStart(2,'0');
+
+      if (hh !== "" && mm !== "") {
+        document.getElementById('bigClock').textContent = hh + ":" + mm + ":" + ss;
+      }
+    }
+
+    function tickSeconds() {
+      sec++;
+      if (sec >= 60) sec = 0;
+      updateClockDisplay();
+    }
+
+    setInterval(tickSeconds, 1000);
+
+    // Extend loadStatus() to update big clock + temp
+    const oldLoadStatus = loadStatus;
+    loadStatus = function() {
+      fetch('/status').then(r=>r.text()).then(t=>{
+        let lines = t.trim().split('\n');
+        let box = document.getElementById('statusBox');
+        box.innerHTML = "";
+
+        let tempC = "";
+        lines.forEach(l=>{
+          let div = document.createElement('div');
+          div.className = 'statusLine';
+          div.textContent = l;
+          box.appendChild(div);
+
+          if (l.startsWith("time=")) {
+            let parts = l.substring(5).split(":");
+            lastHour = parts[0];
+            lastMinute = parts[1];
+            sec = 0; // reset seconds on sync
+            updateClockDisplay();
+          }
+
+          if (l.startsWith("tempC=")) {
+            tempC = l.substring(6);
+            document.getElementById('bigTemp').textContent = tempC + " °C";
+          }
+        });
+      });
+    };
+
     html += "window.onload=loadStatus;";
     html += "</script>";
 
@@ -699,7 +665,12 @@ void WiFiTask(void *pv) {
     // ---------- BODY ----------
     html += "<div class='card'>";
     html += "<h2>Ustawienia Zegara</h2>";
-
+    // --- BIG CLOCK + TEMP ---
+    html += "<div class='bigClockBox'>";
+    html += "  <div id='bigClock' class='bigClock'>--:--:--</div>";
+    html += "  <div id='bigTemp' class='bigTemp'>--.- °C</div>";
+    html += "</div>";
+  
     html += "<label>Jasność</label>";
     html += "<input type='range' id='bright' min='0' max='255' value='" + String(g_brightness) + "'>";
     html += "<div class='value'>Aktualnie: " + String(g_brightness) + "</div>";
