@@ -329,23 +329,32 @@ void DisplayTask(void *pv) {
   //   refreshDisplayOnce();
   //   vTaskDelay(3); // ~3ms tick; adjust if needed
   // }
+  // for (;;) {
+  //   if (g_otaActive) {
+  //     // Static OTA message: "otA"
+  //     g_displaySeg[0] = FONT_o;
+  //     g_displaySeg[1] = FONT_t;
+  //     g_displaySeg[2] = FONT_HEX[10]; // A
+  //     g_displaySeg[3] = FONT_BLANK;
+  //     // Slow, stable multiplexing during OTA
+  //     for (int i = 0; i < 4; i++) {
+  //       allDigitsOff();
+  //       write595(g_displaySeg[i]);
+  //       digitOn(i);
+  //       vTaskDelay(5);
+  //     }
+  //     continue;
+  //   }
   for (;;) {
     if (g_otaActive) {
-      // Static OTA message: "otA"
-      g_displaySeg[0] = FONT_o;
-      g_displaySeg[1] = FONT_t;
-      g_displaySeg[2] = FONT_HEX[10]; // A
-      g_displaySeg[3] = FONT_BLANK;
-  // Slow, stable multiplexing during OTA
-      for (int i = 0; i < 4; i++) {
-        allDigitsOff();
-        write595(g_displaySeg[i]);
-        digitOn(i);
-        vTaskDelay(5);
-      }
+      // Show single stable "A" during OTA (no multiplexing)
+      allDigitsOff();
+      write595(FONT_HEX[10]);   // 'A'
+      digitOn(1);               // show only digit #1 (2nd from left)
+      vTaskDelay(50);           // slow, stable refresh
       continue;
     }
-  // Normal mode
+    // Normal mode
     refreshDisplayOnce();
     vTaskDelay(3);
   }
