@@ -104,11 +104,11 @@ volatile uint8_t g_activeDigit = 0;
 
 volatile int   g_hour   = 0;
 volatile int   g_minute = 0;
-volatile g_second = 0;
+volatile int   g_second = 0;
 volatile float g_tempC  = NAN;
 
 volatile bool  g_showTemp = false;
-volatile bool g_showBootId = true;
+volatile bool  g_showBootId = true;
 
 volatile bool g_timeValid = false;
 volatile bool g_tempValid = false;
