@@ -432,10 +432,12 @@ void WiFiTask(void *pv) {
   // --- Status endpoint ---
   server.on("/status", []() {
     String s;
+    String mm = (g_minute < 10) ? "0" + String(g_minute) : String(g_minute);
     s.reserve(256);
     s += "id=" + g_deviceId + "\n";
     s += "hostname=" + g_hostName + "\n";
-    s += "time=" + String((int)g_hour) + ":" + String((int)g_minute) + "\n";
+    //s += "time=" + String((int)g_hour) + ":" + String((int)g_minute) + "\n";
+    s += "time=" + String(g_hour) + ":" + mm + "\n";
     s += "tempC=" + String((float)g_tempC, 1) + "\n";
     s += "brightness=" + String((int)g_brightness) + "\n";
     s += "autoBrightness=" + String(g_autoBrightness ? "1" : "0") + "\n";
