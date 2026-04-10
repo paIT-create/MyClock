@@ -93,8 +93,8 @@ static const uint8_t FONT_MINUS  = SEG_G;
 static const uint8_t FONT_BLANK  = 0;
 static const uint8_t FONT_DEGREE = SEG_A | SEG_B | SEG_F | SEG_G; // °
 static const uint8_t FONT_C      = SEG_A | SEG_D | SEG_E | SEG_F; // C
-static const uint8_t FONT_o = SEG_C | SEG_D | SEG_E | SEG_G;
-static const uint8_t FONT_t = SEG_D | SEG_E | SEG_F | SEG_G;
+static const uint8_t FONT_o = SEG_C | SEG_D | SEG_E | SEG_G;      // o
+static const uint8_t FONT_t = SEG_D | SEG_E | SEG_F | SEG_G;      // t
 
 // -----------------------------------------------------------------------------
 // Shared state (written by tasks, read by DisplayTask)
@@ -120,7 +120,7 @@ volatile bool g_otaActive = false;
 // Brightness control
 Preferences prefs;
 volatile bool  g_autoBrightness = true;   // can be persisted later if you want
-volatile uint8_t g_brightness = 220;      // 0..255 (logical brightness)
+volatile uint8_t g_brightness = 120;      // 0..255 (logical brightness)
 
 // -----------------------------------------------------------------------------
 // WiFi / Portal
@@ -204,7 +204,7 @@ uint8_t segFromChar(char c) {
 
 void showBootId4() {
   g_showBootId = true;
-  // Ostatnie 4 znaki ID, np. "A1B2C3" -> "B2C3"
+  // Ostatnie 4 znaki z adresu MAC, np. "A1:B2:C3:D4:E5:F6" -> "E5F6"
   g_displayNext[0] = segFromChar(id[0]);
   g_displayNext[1] = segFromChar(id[1]);
   g_displayNext[2] = segFromChar(id[2]);
@@ -212,8 +212,16 @@ void showBootId4() {
 
   commitDisplayBuffer();
 
-  delay(5000);   // tylko raz przy starcie
+  delay(5000);   // tylko raz ! przy starcie
   g_showBootId = false;
+}
+
+int getDS18B20Resolution() {
+  DeviceAddress addr;
+  if (!sensors.getAddress(addr, 0)) {
+    return -1; // brak czujnika
+  }
+  return sensors.getResolution(addr); // zwraca 9,10,11,12
 }
 
 void setDisplayTime(int hh, int mm, bool colonOn) {
@@ -407,7 +415,7 @@ void LogicTask(void *pv) {
     if (!g_timeValid || !g_tempValid) {
       setDisplayDashes();
       vTaskDelay(pdMS_TO_TICKS(200));
-      continue;   // TERAZ jesteśmy wewnątrz pętli -> OK
+      continue;   // jesteśmy wewnątrz pętli -> OK
     }
     uint32_t now = millis();
 
@@ -447,7 +455,7 @@ void WiFiTask(void *pv) {
   uint8_t mac[6];
   esp_read_mac(mac, ESP_MAC_WIFI_STA);
 
-  // mac[3], mac[4], mac[5] = unikalna część
+  // mac[4], mac[5] = unikalna część
   snprintf(id, sizeof(id), "%02X%02X", mac[4], mac[5]);
 
   g_hostName = String("esp32-clock-") + id;
@@ -460,8 +468,8 @@ void WiFiTask(void *pv) {
   portalConfig.apid          = String("ESP32-Clock-") + id;
   portalConfig.psk           = "12345678";
   portalConfig.hostName      = g_hostName.c_str();
-  portalConfig.menuItems     = portalConfig.menuItems | AC_MENUITEM_DELETESSID;  // enable the credentials removal feature in OpenSSIDs menu
-
+  // enable the credentials removal feature in OpenSSIDs menu
+  portalConfig.menuItems     = portalConfig.menuItems | AC_MENUITEM_DELETESSID;
   portal.config(portalConfig);
   
   // OTA callbacks
@@ -485,9 +493,9 @@ void WiFiTask(void *pv) {
     s.reserve(256);
     s += "id=" + g_deviceId + "\n";
     s += "hostname=" + g_hostName + "\n";
-    //s += "time=" + String((int)g_hour) + ":" + String((int)g_minute) + "\n";
     s += "time=" + String(g_hour) + ":" + mm + "\n";
     s += "tempC=" + String((float)g_tempC, 1) + "\n";
+    s += "ds18b20_resolution=" + String(getDS18B20Resolution()) + "\n";
     s += "brightness=" + String((int)g_brightness) + "\n";
     s += "autoBrightness=" + String(g_autoBrightness ? "1" : "0") + "\n";
     s += "wifi=" + String((WiFi.status() == WL_CONNECTED) ? "connected" : "not_connected") + "\n";
@@ -497,6 +505,75 @@ void WiFiTask(void *pv) {
       s += "mdns=http://" + g_hostName + ".local/\n";
     }
     server.send(200, "text/plain", s);
+  });
+  // --- Config endpoint ---
+  server.on("/config", HTTP_GET, []() {
+    String html;
+    html.reserve(3000);
+
+    html += "<!DOCTYPE html><html><head><meta charset='UTF-8'>";
+    html += "<meta name='viewport' content='width=device-width, initial-scale=1'>";
+    html += "<title>Clock Config</title>";
+    html += "<style>";
+    html += "body{font-family:sans-serif;background:#f5f5f5;margin:20px;}";
+    html += ".card{background:white;padding:20px;border-radius:12px;max-width:420px;margin:auto;box-shadow:0 2px 8px rgba(0,0,0,0.15);}";
+    html += "h2{text-align:center;margin-top:0;}";
+    html += "label{display:block;margin-top:20px;font-weight:bold;}";
+    html += ".value{font-size:14px;color:#444;margin-top:4px;}";
+    html += "input[type=range]{width:100%;}";
+    html += ".btn{margin-top:25px;width:100%;padding:12px;border:none;border-radius:8px;font-size:16px;cursor:pointer;}";
+    html += ".save{background:#0078ff;color:white;}";
+    html += ".reset{background:#ddd;color:#333;margin-top:10px;}";
+    html += "</style>";
+
+    html += "<script>";
+    html += "function save(){";
+    html += "  var b=document.getElementById('bright').value;";
+    html += "  var a=document.getElementById('auto').checked?1:0;";
+    html += "  fetch('/set?bright='+b+'&auto='+a).then(()=>alert('Zapisano.'));";
+    html += "}";
+    html += "function reset(){";
+    html += "  fetch('/reset').then(()=>location.reload());";
+    html += "}";
+    html += "</script>";
+
+    html += "</head><body>";
+    html += "<div class='card'>";
+    html += "<h2>Ustawienia</h2>";
+
+    // Jasność
+    html += "<label>Jasność</label>";
+    html += "<input type='range' id='bright' min='0' max='255' value='" + String(g_brightness) + "'>";
+    html += "<div class='value'>Aktualnie: " + String(g_brightness) + "</div>";
+
+    // Auto brightness
+    html += "<label>Auto jasność</label>";
+    html += "<input type='checkbox' id='auto' " + String(g_autoBrightness ? "checked" : "") + ">";
+
+    // Buttons
+    html += "<button class='btn save' onclick='save()'>Zapisz</button>";
+    html += "<button class='btn reset' onclick='reset()'>Reset</button>";
+
+    html += "</div></body></html>";
+
+    server.send(200, "text/html", html);
+  });
+  // --- Set endpoint ---
+  server.on("/set", []() {
+    if (server.hasArg("bright")) {
+      g_brightness = server.arg("bright").toInt();
+    }
+    if (server.hasArg("auto")) {
+      g_autoBrightness = (server.arg("auto") == "1");
+    }
+
+    saveSettings();
+    server.send(200, "text/plain", "OK");
+  });
+  // --- Reset endpoint ---
+  server.on("/reset", []() {
+    resetSettings();
+    server.send(200, "text/plain", "OK: reset");
   });
 
   ota.attach(portal);
@@ -540,9 +617,26 @@ void initBrightnessHardware() {
   applyBrightness(g_brightness);
 }
 
+void saveSettings() {
+  prefs.begin("clock", false);
+  prefs.putUChar("bright", g_brightness);
+  prefs.putBool("autoB", g_autoBrightness);
+  prefs.end();
+}
+
+void resetSettings() {
+  prefs.begin("clock", false);
+  prefs.putUChar("bright", 150);
+  prefs.putBool("autoB", true);
+  prefs.end();
+
+  g_brightness = 220;
+  g_autoBrightness = true;
+}
+
 void loadSettings() {
   prefs.begin("clock", false);
-  g_brightness = prefs.getUChar("bright", 220);
+  g_brightness = prefs.getUChar("bright", 150);
   g_autoBrightness = prefs.getBool("autoB", true);
 }
 
