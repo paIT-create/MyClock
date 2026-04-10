@@ -692,7 +692,7 @@ function loadStatus(){
           bright.value = v;
           document.getElementById('brightVal').textContent = "Aktualnie: " + v;
           firstStatus = false;
-          continue;
+          return;
         }
 
         // 2) Kolejne odświeżenia → aktualizujemy tylko gdy AutoJasność = ON
