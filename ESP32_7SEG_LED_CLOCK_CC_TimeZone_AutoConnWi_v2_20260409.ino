@@ -609,6 +609,7 @@ input[type=checkbox]{transform:scale(1.5);margin-top:12px;cursor:pointer;}
 <script>
 let hh="--", mm="--", ss="--";
 let temp="--.-";
+let firstStatus = true;
 
 function setAuto() {
   let a = document.getElementById('auto').checked ? 1 : 0;
@@ -680,13 +681,23 @@ function loadStatus(){
           updateTemp();
         }
       }
+    
       if(l.startsWith("brightness=")){
         let v = l.substring(11);
+        const bright = document.getElementById('bright');
+        const auto = document.getElementById('auto').checked;
 
-        // aktualizujemy slider TYLKO jeśli autoBrightness = 1
-        // albo jeśli użytkownik nie rusza suwaka
-        if (document.getElementById('auto').checked) {
-          document.getElementById('bright').value = v;
+        // 1) Pierwsze ładowanie strony → zawsze ustawiamy suwak
+        if (firstStatus) {
+          bright.value = v;
+          document.getElementById('brightVal').textContent = "Aktualnie: " + v;
+          firstStatus = false;
+          continue;
+        }
+
+        // 2) Kolejne odświeżenia → aktualizujemy tylko gdy AutoJasność = ON
+        if (auto) {
+          bright.value = v;
           document.getElementById('brightVal').textContent = "Aktualnie: " + v;
         }
       }
