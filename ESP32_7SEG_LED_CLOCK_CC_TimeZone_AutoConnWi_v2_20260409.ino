@@ -104,6 +104,7 @@ volatile uint8_t g_activeDigit = 0;
 
 volatile int   g_hour   = 0;
 volatile int   g_minute = 0;
+volatile g_second = 0;
 volatile float g_tempC  = NAN;
 
 volatile bool  g_showTemp = false;
@@ -381,6 +382,7 @@ void TimeTask(void *pv) {
     if (getLocalTime(&ti, 50)) {
       g_hour = ti.tm_hour;
       g_minute = ti.tm_min;
+      g_second = ti.tm_sec;
       g_timeValid = true;
     }
     vTaskDelay(pdMS_TO_TICKS(1000));
@@ -489,11 +491,12 @@ void WiFiTask(void *pv) {
   server.on("/status", []() {
     String s;
     String mm = (g_minute < 10) ? "0" + String(g_minute) : String(g_minute);
+    String ss = (g_second < 10) ? "0" + String(g_second) : String(g_second);
     s.reserve(256);
     s += "id=" + g_deviceId + "\n";
     s += "hostname=" + g_hostName + "\n";
     //s += "time=" + String(g_hour) + ":" + mm + "\n";
-    s += "time=" + String(g_hour) + ":" + mm + ":" + String(g_second) + "\n";
+    s += "time=" + String(g_hour) + ":" + mm + ":" + ss + "\n";
     s += "tempC=" + String((float)g_tempC, 1) + "\n";
     s += "ds18b20_resolution=" + String(getDS18B20Resolution()) + "\n";
     s += "brightness=" + String((int)g_brightness) + "\n";
