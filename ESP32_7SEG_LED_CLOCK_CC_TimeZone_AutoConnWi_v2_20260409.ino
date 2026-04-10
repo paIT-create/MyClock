@@ -497,7 +497,9 @@ void WiFiTask(void *pv) {
     s += "hostname=" + g_hostName + "\n";
     //s += "time=" + String(g_hour) + ":" + mm + "\n";
     s += "time=" + String(g_hour) + ":" + mm + ":" + ss + "\n";
-    s += "tempC=" + String((float)g_tempC, 1) + "\n";
+    if (g_tempC > -100) {
+      s += "tempC=" + String((float)g_tempC, 1) + "\n";
+    }
     s += "ds18b20_resolution=" + String(getDS18B20Resolution()) + "\n";
     s += "brightness=" + String((int)g_brightness) + "\n";
     s += "autoBrightness=" + String(g_autoBrightness ? "1" : "0") + "\n";
@@ -608,6 +610,14 @@ input[type=checkbox]{transform:scale(1.5);margin-top:12px;cursor:pointer;}
 let hh="--", mm="--", ss="--";
 let temp="--.-";
 
+function setAuto() {
+  let a = document.getElementById('auto').checked ? 1 : 0;
+  fetch('/set?auto=' + a)
+    .then(() => {
+      console.log("Auto brightness updated immediately:", a);
+    });
+}
+    
 function save(){
   let b=document.getElementById('bright').value;
   let a=document.getElementById('auto').checked?1:0;
@@ -653,8 +663,11 @@ function loadStatus(){
       }
 
       if(l.startsWith("tempC=")){
-        temp = l.substring(6);
-        updateTemp();
+        let v = parseFloat(l.substring(6));
+        if (v > -100) {
+          temp = v.toFixed(1);
+          updateTemp();
+        }
       }
       if(l.startsWith("brightness=")){
         let v = l.substring(11);
@@ -690,7 +703,7 @@ window.onload = loadStatus;
 <div class="value" id="brightVal"></div>
 
 <label>Auto jasność</label>
-<input type="checkbox" id="auto">
+<input type="checkbox" id="auto" onchange="setAuto()">
 
 <button class="btn save" onclick="save()">💾 Zapisz</button>
 <button class="btn reset" onclick="reset()">↺ Reset</button>
