@@ -572,97 +572,77 @@ void WiFiTask(void *pv) {
     html += "</style>";
 
     // ---------- SCRIPT ----------
-    html += "<script>";
+   html += R"rawliteral(
+<script>
+let sec = 0;
+let lastMinute = "";
+let lastHour = "";
 
-    html += "function save(){";
-    html += "  var b=document.getElementById('bright').value;";
-    html += "  var a=document.getElementById('auto').checked?1:0;";
-    html += "  fetch('/set?bright='+b+'&auto='+a).then(()=>{";
-    html += "    alert('Zapisano ustawienia');";
-    html += "    loadStatus();";
-    html += "  });";
-    html += "}";
+function save(){
+  var b=document.getElementById('bright').value;
+  var a=document.getElementById('auto').checked?1:0;
+  fetch('/set?bright='+b+'&auto='+a).then(()=>{
+    alert('Zapisano ustawienia');
+    loadStatus();
+  });
+}
 
-    html += "function reset(){";
-    html += "  fetch('/reset').then(()=>{";
-    html += "    alert('Przywrócono ustawienia domyślne');";
-    html += "    location.reload();";
-    html += "  });";
-    html += "}";
+function reset(){
+  fetch('/reset').then(()=>{
+    alert('Przywrócono ustawienia domyślne');
+    location.reload();
+  });
+}
 
-    html += "function loadStatus(){";
-    html += "  fetch('/status').then(r=>r.text()).then(t=>{";
-    html += "    let lines=t.trim().split('\\n');";
-    html += "    let box=document.getElementById('statusBox');";
-    html += "    box.innerHTML='';";
-    html += "    lines.forEach(l=>{";
-    html += "      let div=document.createElement('div');";
-    html += "      div.className='statusLine';";
-    html += "      div.textContent=l;";
-    html += "      box.appendChild(div);";
-    html += "    });";
-    html += "  });";
-    html += "}";
+function updateClockDisplay() {
+  let hh = lastHour;
+  let mm = lastMinute;
+  let ss = sec.toString().padStart(2,'0');
+  if (hh !== "" && mm !== "") {
+    document.getElementById('bigClock').textContent = hh + ":" + mm + ":" + ss;
+  }
+}
 
-    html += "window.onload=loadStatus;";
-    html += "</script>";
-    
-    html += R"rawliteral(
-    <script>
-    let sec = 0;
-    let lastMinute = "";
-    let lastHour = "";
+function tickSeconds() {
+  sec++;
+  if (sec >= 60) sec = 0;
+  updateClockDisplay();
+}
+setInterval(tickSeconds, 1000);
 
-    function updateClockDisplay() {
-      let hh = lastHour;
-      let mm = lastMinute;
-      let ss = sec.toString().padStart(2,'0');
+function loadStatus(){
+  fetch('/status').then(r=>r.text()).then(t=>{
+    let lines=t.trim().split('\n');
+    let box=document.getElementById('statusBox');
+    box.innerHTML='';
 
-      if (hh !== "" && mm !== "") {
-        document.getElementById('bigClock').textContent = hh + ":" + mm + ":" + ss;
+    let tempC="";
+    lines.forEach(l=>{
+      let div=document.createElement('div');
+      div.className='statusLine';
+      div.textContent=l;
+      box.appendChild(div);
+
+      if(l.startsWith("time=")){
+        let parts=l.substring(5).split(":");
+        lastHour=parts[0];
+        lastMinute=parts[1];
+        sec=0;
+        updateClockDisplay();
       }
-    }
 
-    function tickSeconds() {
-      sec++;
-      if (sec >= 60) sec = 0;
-      updateClockDisplay();
-    }
+      if(l.startsWith("tempC=")){
+        tempC=l.substring(6);
+        document.getElementById('bigTemp').textContent=tempC+" °C";
+      }
+    });
+  });
+}
 
-    setInterval(tickSeconds, 1000);
-
-    // Extend loadStatus() to update big clock + temp
-    const oldLoadStatus = loadStatus;
-    loadStatus = function() {
-      fetch('/status').then(r=>r.text()).then(t=>{
-        let lines = t.trim().split('\n');
-        let box = document.getElementById('statusBox');
-        box.innerHTML = "";
-
-        let tempC = "";
-        lines.forEach(l=>{
-          let div = document.createElement('div');
-          div.className = 'statusLine';
-          div.textContent = l;
-          box.appendChild(div);
-
-          if (l.startsWith("time=")) {
-            let parts = l.substring(5).split(":");
-            lastHour = parts[0];
-            lastMinute = parts[1];
-            sec = 0; // reset seconds on sync
-            updateClockDisplay();
-          }
-
-          if (l.startsWith("tempC=")) {
-            tempC = l.substring(6);
-            document.getElementById('bigTemp').textContent = tempC + " °C";
-          }
-        });
-      });
-    };
-    </script>
+window.onload=loadStatus;
+</script>
 )rawliteral";
+
     
     html += "</head><body>";
 
