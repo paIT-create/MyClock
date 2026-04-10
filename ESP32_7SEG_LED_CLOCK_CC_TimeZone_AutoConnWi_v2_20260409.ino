@@ -604,6 +604,11 @@ void WiFiTask(void *pv) {
     html += "  });";
     html += "}";
 
+    html += "window.onload=loadStatus;";
+    html += "</script>";
+    
+    html += R"rawliteral(
+    <script>
     let sec = 0;
     let lastMinute = "";
     let lastHour = "";
@@ -656,10 +661,9 @@ void WiFiTask(void *pv) {
         });
       });
     };
-
-    html += "window.onload=loadStatus;";
-    html += "</script>";
-
+    </script>
+)rawliteral";
+    
     html += "</head><body>";
 
     // ---------- BODY ----------
