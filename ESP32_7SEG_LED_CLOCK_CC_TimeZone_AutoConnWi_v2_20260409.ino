@@ -9,6 +9,9 @@
   - mDNS: esp32-clock.local (best-effort)
   - Brightness: OE pin PWM + optional auto brightness from LDR (ADC)
 
+  ✔ ESP32 core 2.0.17  
+  ✔ AutoConnect 1.4.2
+  ✔ PageBuilder 1.5.6
 */
 
 #include <Arduino.h>
