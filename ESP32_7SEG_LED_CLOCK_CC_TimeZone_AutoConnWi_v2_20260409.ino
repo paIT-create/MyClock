@@ -656,6 +656,16 @@ function loadStatus(){
         temp = l.substring(6);
         updateTemp();
       }
+      if(l.startsWith("brightness=")){
+        let v = l.substring(11);
+        document.getElementById('bright').value = v;
+        document.getElementById('brightVal').textContent = "Aktualnie: " + v;
+      }
+
+      if(l.startsWith("autoBrightness=")){
+        let v = l.substring(15);
+        document.getElementById('auto').checked = (v === "1");
+      }
     });
   });
 }
