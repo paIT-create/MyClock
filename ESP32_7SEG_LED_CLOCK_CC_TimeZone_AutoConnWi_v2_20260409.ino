@@ -618,6 +618,17 @@ function setAuto() {
     });
 }
     
+function setBright(v) {
+  // jeśli autoBrightness = 1 → ignorujemy ręczne zmiany
+  if (document.getElementById('auto').checked) return;
+
+  fetch('/set?bright=' + v)
+    .then(() => {
+      document.getElementById('brightVal').textContent = "Aktualnie: " + v;
+      console.log("Brightness updated immediately:", v);
+    });
+}
+    
 function save(){
   let b=document.getElementById('bright').value;
   let a=document.getElementById('auto').checked?1:0;
@@ -671,8 +682,13 @@ function loadStatus(){
       }
       if(l.startsWith("brightness=")){
         let v = l.substring(11);
-        document.getElementById('bright').value = v;
-        document.getElementById('brightVal').textContent = "Aktualnie: " + v;
+
+        // aktualizujemy slider TYLKO jeśli autoBrightness = 1
+        // albo jeśli użytkownik nie rusza suwaka
+        if (document.getElementById('auto').checked) {
+          document.getElementById('bright').value = v;
+          document.getElementById('brightVal').textContent = "Aktualnie: " + v;
+        }
       }
 
       if(l.startsWith("autoBrightness=")){
@@ -699,7 +715,7 @@ window.onload = loadStatus;
 </div>
 
 <label>Jasność</label>
-<input type="range" id="bright" min="0" max="255">
+<input type="range" id="bright" min="0" max="255" oninput="setBright(this.value)">
 <div class="value" id="brightVal"></div>
 
 <label>Auto jasność</label>
