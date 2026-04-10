@@ -492,7 +492,8 @@ void WiFiTask(void *pv) {
     s.reserve(256);
     s += "id=" + g_deviceId + "\n";
     s += "hostname=" + g_hostName + "\n";
-    s += "time=" + String(g_hour) + ":" + mm + "\n";
+    //s += "time=" + String(g_hour) + ":" + mm + "\n";
+    s += "time=" + String(g_hour) + ":" + mm + ":" + String(g_second) + "\n";
     s += "tempC=" + String((float)g_tempC, 1) + "\n";
     s += "ds18b20_resolution=" + String(getDS18B20Resolution()) + "\n";
     s += "brightness=" + String((int)g_brightness) + "\n";
@@ -507,83 +508,108 @@ void WiFiTask(void *pv) {
   });
   // --- Config endpoint ---
   server.on("/config", HTTP_GET, []() {
-    String html;
-    html.reserve(9000);
+  String html = R"rawliteral(
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clock Config</title>
 
-    html += "<!DOCTYPE html><html><head><meta charset='UTF-8'>";
-    html += "<meta name='viewport' content='width=device-width, initial-scale=1'>";
-    html += "<title>Clock Config</title>";
+<style>
+body{
+  margin:0;padding:20px;background:#05060a;
+  font-family:Segoe UI,Roboto,Arial,sans-serif;
+  background:linear-gradient(135deg,#05060a,#0a0d14,#05060a);
+  background-size:400% 400%;
+  animation:bgmove 18s ease infinite;
+  color:#d0d0d0;
+}
+@keyframes bgmove{
+  0%{background-position:0% 50%;}
+  50%{background-position:100% 50%;}
+  100%{background-position:0% 50%;}
+}
+.card{
+  background:#0f1117;padding:28px;border-radius:16px;
+  max-width:500px;margin:25px auto;
+  box-shadow:0 0 25px #0090ff55,0 0 60px #0050ff33,inset 0 0 20px #0030aa55;
+}
+h2{
+  text-align:center;margin-top:0;color:#6ab8ff;font-size:26px;
+  text-shadow:0 0 12px #0088ff,0 0 22px #0066ff;
+}
+label{
+  display:block;margin-top:25px;font-weight:600;color:#9fc9ff;
+  text-shadow:0 0 6px #0044aa;
+}
+.value{font-size:14px;color:#aaa;margin-top:6px;}
+input[type=range]{
+  width:100%;margin-top:12px;-webkit-appearance:none;height:6px;
+  background:#222;border-radius:4px;outline:none;
+  box-shadow:0 0 10px #0077ff88;
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;width:22px;height:22px;
+  background:#00aaff;border-radius:50%;cursor:pointer;
+  box-shadow:0 0 12px #00aaff,0 0 22px #0088ff;
+}
+input[type=checkbox]{transform:scale(1.5);margin-top:12px;cursor:pointer;}
+.btn{
+  margin-top:30px;width:100%;padding:14px;border:none;border-radius:12px;
+  font-size:18px;cursor:pointer;font-weight:600;transition:0.25s;
+  letter-spacing:0.5px;
+}
+.save{
+  background:#0078ff;color:white;
+  box-shadow:0 0 18px #0078ffcc,0 0 30px #0050ff88;
+}
+.save:hover{
+  background:#0a8bff;
+  box-shadow:0 0 25px #0a8bffdd,0 0 40px #0070ffaa;
+}
+.reset{
+  background:#333;color:#ccc;margin-top:12px;
+  box-shadow:0 0 12px #444;
+}
+.reset:hover{
+  background:#444;color:white;box-shadow:0 0 18px #666;
+}
+.statusBox{
+  margin-top:35px;padding:18px;background:#0a0c12;border-radius:12px;
+  box-shadow:inset 0 0 18px #0070ffaa,inset 0 0 35px #0030aa55;
+}
+.titleSmall{
+  color:#6ab8ff;font-size:17px;margin-bottom:12px;
+  text-shadow:0 0 10px #0088ff;
+}
+.statusLine{
+  margin:6px 0;font-size:14px;color:#c0c0c0;font-family:Consolas,monospace;
+  text-shadow:0 0 6px #0040aa;
+}
 
-    // ---------- STYLE ----------
-    html += "<style>";
-    html += "body{margin:0;padding:20px;background:#05060a;font-family:Segoe UI,Roboto,Arial,sans-serif;";
-    html += "background:linear-gradient(135deg,#05060a,#0a0d14,#05060a);background-size:400% 400%;";
-    html += "animation:bgmove 18s ease infinite;color:#d0d0d0;}";
+/* BIG CLOCK + TEMP */
+.bigClockBox{text-align:center;margin-top:10px;margin-bottom:25px;}
+.bigClock{
+  font-size:48px;font-weight:700;color:#6ab8ff;
+  text-shadow:0 0 12px #0088ff,0 0 25px #0066ff,0 0 40px #0044aa;
+  letter-spacing:2px;margin-bottom:10px;
+}
+.bigTemp{
+  font-size:32px;font-weight:600;color:#ffdd88;
+  text-shadow:0 0 12px #ffaa00,0 0 25px #ff8800,0 0 40px #cc6600;
+}
+</style>
 
-    html += "@keyframes bgmove{0%{background-position:0% 50%;}50%{background-position:100% 50%;}100%{background-position:0% 50%;}}";
-
-    html += ".card{background:#0f1117;padding:28px;border-radius:16px;max-width:500px;margin:25px auto;";
-    html += "box-shadow:0 0 25px #0090ff55,0 0 60px #0050ff33,inset 0 0 20px #0030aa55;}";
-
-    html += "h2{text-align:center;margin-top:0;color:#6ab8ff;font-size:26px;";
-    html += "text-shadow:0 0 12px #0088ff,0 0 22px #0066ff;}";
-
-    html += "label{display:block;margin-top:25px;font-weight:600;color:#9fc9ff;";
-    html += "text-shadow:0 0 6px #0044aa;}";
-
-    html += ".value{font-size:14px;color:#aaa;margin-top:6px;}";
-
-    html += "input[type=range]{width:100%;margin-top:12px;-webkit-appearance:none;height:6px;";
-    html += "background:#222;border-radius:4px;outline:none;";
-    html += "box-shadow:0 0 10px #0077ff88;}";
-
-    html += "input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;";
-    html += "background:#00aaff;border-radius:50%;cursor:pointer;";
-    html += "box-shadow:0 0 12px #00aaff,0 0 22px #0088ff;}";
-
-    html += "input[type=checkbox]{transform:scale(1.5);margin-top:12px;cursor:pointer;}";
-
-    html += ".btn{margin-top:30px;width:100%;padding:14px;border:none;border-radius:12px;font-size:18px;";
-    html += "cursor:pointer;font-weight:600;transition:0.25s;letter-spacing:0.5px;}";
-
-    html += ".save{background:#0078ff;color:white;box-shadow:0 0 18px #0078ffcc,0 0 30px #0050ff88;}";
-    html += ".save:hover{background:#0a8bff;box-shadow:0 0 25px #0a8bffdd,0 0 40px #0070ffaa;}";
-
-    html += ".reset{background:#333;color:#ccc;margin-top:12px;box-shadow:0 0 12px #444;}";
-    html += ".reset:hover{background:#444;color:white;box-shadow:0 0 18px #666;}";
-
-    html += ".statusBox{margin-top:35px;padding:18px;background:#0a0c12;border-radius:12px;";
-    html += "box-shadow:inset 0 0 18px #0070ffaa,inset 0 0 35px #0030aa55;}";
-
-    html += ".titleSmall{color:#6ab8ff;font-size:17px;margin-bottom:12px;";
-    html += "text-shadow:0 0 10px #0088ff;}";
-
-    html += ".statusLine{margin:6px 0;font-size:14px;color:#c0c0c0;font-family:Consolas,monospace;";
-    html += "text-shadow:0 0 6px #0040aa;}";
-
-    // BIG CLOCK + TEMP
-    html += ".bigClockBox{text-align:center;margin-top:10px;margin-bottom:25px;}";
-    html += ".bigClock{font-size:48px;font-weight:700;color:#6ab8ff;";
-    html += "text-shadow:0 0 12px #0088ff,0 0 25px #0066ff,0 0 40px #0044aa;";
-    html += "letter-spacing:2px;margin-bottom:10px;}";
-    html += ".bigTemp{font-size:32px;font-weight:600;color:#ffdd88;";
-    html += "text-shadow:0 0 12px #ffaa00,0 0 25px #ff8800,0 0 40px #cc6600;}";
-
-    html += "</style>";
-
-    // ---------- SCRIPT ----------
-   html += R"rawliteral(
 <script>
-let sec = 0;
-let lastMinute = "";
-let lastHour = "";
+let hh="--", mm="--", ss="--";
+let temp="--.-";
 
 function save(){
-  var b=document.getElementById('bright').value;
-  var a=document.getElementById('auto').checked?1:0;
+  let b=document.getElementById('bright').value;
+  let a=document.getElementById('auto').checked?1:0;
   fetch('/set?bright='+b+'&auto='+a).then(()=>{
     alert('Zapisano ustawienia');
-    loadStatus();
   });
 }
 
@@ -594,21 +620,14 @@ function reset(){
   });
 }
 
-function updateClockDisplay() {
-  let hh = lastHour;
-  let mm = lastMinute;
-  let ss = sec.toString().padStart(2,'0');
-  if (hh !== "" && mm !== "") {
-    document.getElementById('bigClock').textContent = hh + ":" + mm + ":" + ss;
-  }
+function updateClock(){
+  document.getElementById('bigClock').textContent =
+    hh + ":" + mm + ":" + ss;
 }
 
-function tickSeconds() {
-  sec++;
-  if (sec >= 60) sec = 0;
-  updateClockDisplay();
+function updateTemp(){
+  document.getElementById('bigTemp').textContent = temp + " °C";
 }
-setInterval(tickSeconds, 1000);
 
 function loadStatus(){
   fetch('/status').then(r=>r.text()).then(t=>{
@@ -616,7 +635,6 @@ function loadStatus(){
     let box=document.getElementById('statusBox');
     box.innerHTML='';
 
-    let tempC="";
     lines.forEach(l=>{
       let div=document.createElement('div');
       div.className='statusLine';
@@ -625,55 +643,57 @@ function loadStatus(){
 
       if(l.startsWith("time=")){
         let parts=l.substring(5).split(":");
-        lastHour=parts[0];
-        lastMinute=parts[1];
-        sec=0;
-        updateClockDisplay();
+        hh = parts[0];
+        mm = parts[1];
+        ss = parts[2];
+        updateClock();
       }
 
       if(l.startsWith("tempC=")){
-        tempC=l.substring(6);
-        document.getElementById('bigTemp').textContent=tempC+" °C";
+        temp = l.substring(6);
+        updateTemp();
       }
     });
   });
 }
 
-window.onload=loadStatus;
+setInterval(loadStatus, 1000);
+window.onload = loadStatus;
 </script>
+
+</head>
+<body>
+
+<div class="card">
+<h2>Ustawienia Zegara</h2>
+
+<div class="bigClockBox">
+  <div id="bigClock" class="bigClock">--:--:--</div>
+  <div id="bigTemp" class="bigTemp">--.- °C</div>
+</div>
+
+<label>Jasność</label>
+<input type="range" id="bright" min="0" max="255">
+<div class="value" id="brightVal"></div>
+
+<label>Auto jasność</label>
+<input type="checkbox" id="auto">
+
+<button class="btn save" onclick="save()">💾 Zapisz</button>
+<button class="btn reset" onclick="reset()">↺ Reset</button>
+
+<div class="statusBox">
+  <div class="titleSmall">Status urządzenia</div>
+  <div id="statusBox">Ładowanie...</div>
+</div>
+
+</div>
+</body>
+</html>
 )rawliteral";
 
-    
-    html += "</head><body>";
-
-    // ---------- BODY ----------
-    html += "<div class='card'>";
-    html += "<h2>Ustawienia Zegara</h2>";
-    // --- BIG CLOCK + TEMP ---
-    html += "<div class='bigClockBox'>";
-    html += "  <div id='bigClock' class='bigClock'>--:--:--</div>";
-    html += "  <div id='bigTemp' class='bigTemp'>--.- °C</div>";
-    html += "</div>";
-  
-    html += "<label>Jasność</label>";
-    html += "<input type='range' id='bright' min='0' max='255' value='" + String(g_brightness) + "'>";
-    html += "<div class='value'>Aktualnie: " + String(g_brightness) + "</div>";
-
-    html += "<label>Auto jasność</label>";
-    html += "<input type='checkbox' id='auto' " + String(g_autoBrightness ? "checked" : "") + ">";
-
-    html += "<button class='btn save' onclick='save()'>💾 Zapisz</button>";
-    html += "<button class='btn reset' onclick='reset()'>↺ Reset</button>";
-
-    html += "<div class='statusBox'>";
-    html += "<div class='titleSmall'>Status urządzenia</div>";
-    html += "<div id='statusBox'>Ładowanie...</div>";
-    html += "</div>";
-
-    html += "</div></body></html>";
-
-    server.send(200, "text/html", html);
-  });
+  server.send(200, "text/html", html);
+});
 
   // --- Set endpoint ---
   server.on("/set", []() {
