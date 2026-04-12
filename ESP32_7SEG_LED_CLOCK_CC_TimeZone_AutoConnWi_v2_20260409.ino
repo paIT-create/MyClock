@@ -394,8 +394,8 @@ void DisplayTask(void *pv) {
       delayMicroseconds(500);   // czas świecenia jednej cyfry – do strojenia
     }
 
-    // lekki yield, bez 1 ms przerwy
-    taskYIELD();
+    // ważne: dajemy schedulerowi i idle taskowi czas na życie → WDT się nie wścieka
+    vTaskDelay(1);
   }
 }
 
