@@ -410,6 +410,7 @@ void TempTask(void *pv) {
 
 void LogicTask(void *pv) {
   // Prepares display buffer only.
+  static int lastSec = -1;
   bool colon;
 
   for (;;) {
