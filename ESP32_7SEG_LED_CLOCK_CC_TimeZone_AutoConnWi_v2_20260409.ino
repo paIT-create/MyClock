@@ -410,7 +410,7 @@ void TempTask(void *pv) {
 
 void LogicTask(void *pv) {
   // Prepares display buffer only.
-  bool colon = false;
+  bool colon;
 
   for (;;) {
     // czekaj na koniec show boot ID
@@ -424,29 +424,17 @@ void LogicTask(void *pv) {
       vTaskDelay(pdMS_TO_TICKS(200));
       continue;  // jesteśmy wewnątrz pętli -> OK
     }
-    uint32_t now = millis();
-
-    uint32_t phase = now % 15000;  // 15‑sekundowy cykl
-
-    if (phase < 5000) {
-      g_showTemp = true;  // 0–5 s → temperatura
-    } else {
-      g_showTemp = false;  // 5–15 s → czas
-    }
-
-    colon = !colon;
-
-    if (g_showTemp) {
-      setDisplayTemp(g_tempC);
-    } else {
-      setDisplayTime(g_hour, g_minute, colon);
-    }
-
-    //vTaskDelay(pdMS_TO_TICKS(500));
-    static int lastSec = -1;
-
+    // czekamy na zmianę sekundy
     if (g_second != lastSec) {
       lastSec = g_second;
+
+      // miganie zsynchronizowane z czasem
+      colon = (g_second % 2) == 0;
+
+      uint32_t now = millis();
+      uint32_t phase = now % 15000; // 15‑sekundowy cykl
+
+      g_showTemp = (phase < 5000);  // 0–5 s → temperatura, 5–15 s → czas
 
       if (g_showTemp) {
         setDisplayTemp(g_tempC);
@@ -454,6 +442,7 @@ void LogicTask(void *pv) {
         setDisplayTime(g_hour, g_minute, colon);
       }
     }
+
     vTaskDelay(1);
   }
 }
