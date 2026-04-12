@@ -375,10 +375,36 @@ uint8_t computeAutoBrightnessFromLDR() {
 //     vTaskDelay(1);
 //   }
 // }
+
+// void DisplayTask(void *pv) {
+//   for (;;) {
+//     if (g_otaActive) {
+//       // OTA: stabilne „A” bez multipleksowania
+//       allDigitsOff();
+//       write595(FONT_HEX[10]);  // 'A'
+//       digitOn(0);
+//       vTaskDelay(250);
+//       continue;
+//     }
+
+//     // Normalny tryb: pełna rama w jednym przebiegu
+//     for (int d = 0; d < 4; d++) {
+//       allDigitsOff();
+//       write595(g_displaySeg[d]);
+//       digitOn(d);
+//       delayMicroseconds(500);   // czas świecenia jednej cyfry – do strojenia
+//     }
+
+//     // ważne: dajemy schedulerowi i idle taskowi czas na życie → WDT się nie wścieka
+//     vTaskDelay(1);
+//   }
+// }
 void DisplayTask(void *pv) {
+  const int DIGIT_ON_US = 400;   // czas świecenia jednej cyfry
+  const int FRAME_US = 2000;     // stały czas ramki (2 ms = 500 Hz)
+
   for (;;) {
     if (g_otaActive) {
-      // OTA: stabilne „A” bez multipleksowania
       allDigitsOff();
       write595(FONT_HEX[10]);  // 'A'
       digitOn(0);
@@ -386,16 +412,23 @@ void DisplayTask(void *pv) {
       continue;
     }
 
-    // Normalny tryb: pełna rama w jednym przebiegu
+    uint32_t frameStart = micros();
+
+    // 4 cyfry – każda świeci tyle samo
     for (int d = 0; d < 4; d++) {
       allDigitsOff();
       write595(g_displaySeg[d]);
       digitOn(d);
-      delayMicroseconds(500);   // czas świecenia jednej cyfry – do strojenia
+      delayMicroseconds(DIGIT_ON_US);
     }
 
-    // ważne: dajemy schedulerowi i idle taskowi czas na życie → WDT się nie wścieka
-    vTaskDelay(1);
+    // Czekamy do końca ramki → stała częstotliwość, zero drżenia
+    while ((micros() - frameStart) < FRAME_US) {
+      // nic – czekamy
+    }
+
+    // Krótki yield, żeby nakarmić WDT
+    taskYIELD();
   }
 }
 
