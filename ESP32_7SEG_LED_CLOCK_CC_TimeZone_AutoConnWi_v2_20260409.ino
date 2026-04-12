@@ -100,7 +100,16 @@ static const uint8_t FONT_t = SEG_D | SEG_E | SEG_F | SEG_G;       // t
 // Shared state (written by tasks, read by DisplayTask)
 // -----------------------------------------------------------------------------
 volatile uint8_t g_displaySeg[4] = { 0, 0, 0, 0 };  // raw segment bytes (incl DP)
-volatile uint8_t g_activeDigit = 0;
+// --- PARAMETRY MULTIPLEXOWANIA (do strojenia) ---
+// czas świecenia jednej cyfry (µs)
+static const uint16_t DIGIT_ON_US = 350;
+// czas całej ramki (µs) → 500 Hz przy 2000 µs
+static const uint16_t FRAME_US    = 2000;
+
+// --- sprzętowy timer do multipleksowania ---
+hw_timer_t* displayTimer = nullptr;
+portMUX_TYPE timerMux = portMUX_INITIALIZER_UNLOCKED;
+volatile uint8_t currentDigit = 0;
 
 volatile int g_hour = 0;
 volatile int g_minute = 0;
@@ -172,13 +181,34 @@ static inline void digitOn(uint8_t idx) {
   digitalWrite(DIGIT_PINS[idx], DIGIT_ENABLE_HIGH ? HIGH : LOW);
 }
 
-void refreshDisplayOnce() {
-  uint8_t d = g_activeDigit;
-  g_activeDigit = (d + 1) & 0x03;
+// void refreshDisplayOnce() {
+//   uint8_t d = g_activeDigit;
+//   g_activeDigit = (d + 1) & 0x03;
 
-  allDigitsOff();
-  write595(g_displaySeg[d]);
-  digitOn(d);
+//   allDigitsOff();
+//   write595(g_displaySeg[d]);
+//   digitOn(d);
+// }
+
+// --- ISR sprzętowego timera ---
+void IRAM_ATTR onDisplayTimer() {
+  portENTER_CRITICAL_ISR(&timerMux);
+
+  static uint32_t digitStart = 0;
+  uint32_t now = micros();
+
+  // przełącz cyfrę po upływie DIGIT_ON_US
+  if (now - digitStart >= DIGIT_ON_US) {
+    digitStart = now;
+
+    allDigitsOff();
+    write595(g_displaySeg[currentDigit]);
+    digitOn(currentDigit);
+
+    currentDigit = (currentDigit + 1) & 0x03;
+  }
+
+  portEXIT_CRITICAL_ISR(&timerMux);
 }
 
 // -----------------------------------------------------------------------------
@@ -399,38 +429,7 @@ uint8_t computeAutoBrightnessFromLDR() {
 //     vTaskDelay(1);
 //   }
 // }
-void DisplayTask(void *pv) {
-  const int DIGIT_ON_US = 400;   // czas świecenia jednej cyfry
-  const int FRAME_US = 2000;     // stały czas ramki (2 ms = 500 Hz)
-
-  for (;;) {
-    if (g_otaActive) {
-      allDigitsOff();
-      write595(FONT_HEX[10]);  // 'A'
-      digitOn(0);
-      vTaskDelay(250);
-      continue;
-    }
-
-    uint32_t frameStart = micros();
-
-    // 4 cyfry – każda świeci tyle samo
-    for (int d = 0; d < 4; d++) {
-      allDigitsOff();
-      write595(g_displaySeg[d]);
-      digitOn(d);
-      delayMicroseconds(DIGIT_ON_US);
-    }
-
-    // Czekamy do końca ramki → stała częstotliwość, zero drżenia
-    while ((micros() - frameStart) < FRAME_US) {
-      // nic – czekamy
-    }
-
-    // Krótki yield, żeby nakarmić WDT
-    taskYIELD();
-  }
-}
+// DisplayTask usunięty – zastępuje go timer sprzętowy
 
 void TimeTask(void *pv) {
   struct tm ti;
@@ -935,7 +934,7 @@ void setup() {
   g_displayNext[2] = FONT_MINUS;
   g_displayNext[3] = FONT_MINUS;
   commitDisplayBuffer();
-  g_activeDigit = 0;
+  gcurrentDigit = 0;
   // Twarde wygaszenie wszystkich cyfr (ULN2803)
   allDigitsOff();
   write595(0);  // wyczyść 74HC595
@@ -948,7 +947,16 @@ void setup() {
   setupTime();
 
   // Tasks
-  xTaskCreatePinnedToCore(DisplayTask, "Display", 2048, nullptr, 3, nullptr, 0);
+  //xTaskCreatePinnedToCore(DisplayTask, "Display", 2048, nullptr, 3, nullptr, 0);
+  
+  // --- sprzętowy timer multipleksowania ---
+  // 80 MHz / 80 = 1 MHz → 1 tick = 1 µs
+  displayTimer = timerBegin(0, 80, true);
+  timerAttachInterrupt(displayTimer, &onDisplayTimer, true);
+  // przerwanie co FRAME_US (np. 2000 µs → 500 Hz)
+  timerAlarmWrite(displayTimer, FRAME_US, true);
+  timerAlarmEnable(displayTimer);
+  // Tasks
   xTaskCreatePinnedToCore(TimeTask, "Time", 4096, nullptr, 2, nullptr, 1);
   xTaskCreatePinnedToCore(TempTask, "Temp", 4096, nullptr, 1, nullptr, 1);
   xTaskCreatePinnedToCore(LogicTask, "Logic", 4096, nullptr, 1, nullptr, 1);
