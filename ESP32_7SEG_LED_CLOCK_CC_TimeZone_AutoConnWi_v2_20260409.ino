@@ -181,15 +181,6 @@ static inline void digitOn(uint8_t idx) {
   digitalWrite(DIGIT_PINS[idx], DIGIT_ENABLE_HIGH ? HIGH : LOW);
 }
 
-// void refreshDisplayOnce() {
-//   uint8_t d = g_activeDigit;
-//   g_activeDigit = (d + 1) & 0x03;
-
-//   allDigitsOff();
-//   write595(g_displaySeg[d]);
-//   digitOn(d);
-// }
-
 // --- ISR sprzętowego timera ---
 void IRAM_ATTR onDisplayTimer() {
   portENTER_CRITICAL_ISR(&timerMux);
@@ -365,70 +356,7 @@ uint8_t computeAutoBrightnessFromLDR() {
 // -----------------------------------------------------------------------------
 // Tasks
 // -----------------------------------------------------------------------------
-// void DisplayTask(void *pv) {
-//   // Highest priority, Core 0: guarantees no blanking.
 
-//   // for (;;) {
-//   //   refreshDisplayOnce();
-//   //   vTaskDelay(1); // ~1ms tick; adjust if needed
-//   // }
-
-//   // for (;;) {
-//   //   if (g_otaActive) {
-//   //     // Static OTA message: "otA"
-//   //     g_displaySeg[0] = FONT_o;
-//   //     g_displaySeg[1] = FONT_t;
-//   //     g_displaySeg[2] = FONT_HEX[10]; // A
-//   //     g_displaySeg[3] = FONT_BLANK;
-//   //     // Slow, stable multiplexing during OTA
-//   //     for (int i = 0; i < 4; i++) {
-//   //       allDigitsOff();
-//   //       write595(g_displaySeg[i]);
-//   //       digitOn(i);
-//   //       vTaskDelay(5);
-//   //     }
-//   //     continue;
-//   //   }
-
-//   for (;;) {
-//     if (g_otaActive) {
-//       // Show single stable "A" during OTA (no multiplexing)
-//       allDigitsOff();
-//       write595(FONT_HEX[10]);  // 'A'
-//       digitOn(0);              // show only digit #0 (1st from left)
-//       vTaskDelay(250);         // slow, stable refresh
-//       continue;
-//     }
-
-//     // Normal mode
-//     refreshDisplayOnce();
-//     vTaskDelay(1);
-//   }
-// }
-
-// void DisplayTask(void *pv) {
-//   for (;;) {
-//     if (g_otaActive) {
-//       // OTA: stabilne „A” bez multipleksowania
-//       allDigitsOff();
-//       write595(FONT_HEX[10]);  // 'A'
-//       digitOn(0);
-//       vTaskDelay(250);
-//       continue;
-//     }
-
-//     // Normalny tryb: pełna rama w jednym przebiegu
-//     for (int d = 0; d < 4; d++) {
-//       allDigitsOff();
-//       write595(g_displaySeg[d]);
-//       digitOn(d);
-//       delayMicroseconds(500);   // czas świecenia jednej cyfry – do strojenia
-//     }
-
-//     // ważne: dajemy schedulerowi i idle taskowi czas na życie → WDT się nie wścieka
-//     vTaskDelay(1);
-//   }
-// }
 // DisplayTask usunięty – zastępuje go timer sprzętowy
 
 void TimeTask(void *pv) {
@@ -934,7 +862,7 @@ void setup() {
   g_displayNext[2] = FONT_MINUS;
   g_displayNext[3] = FONT_MINUS;
   commitDisplayBuffer();
-  gcurrentDigit = 0;
+  currentDigit = 0;
   // Twarde wygaszenie wszystkich cyfr (ULN2803)
   allDigitsOff();
   write595(0);  // wyczyść 74HC595
@@ -946,9 +874,6 @@ void setup() {
 
   setupTime();
 
-  // Tasks
-  //xTaskCreatePinnedToCore(DisplayTask, "Display", 2048, nullptr, 3, nullptr, 0);
-  
   // --- sprzętowy timer multipleksowania ---
   // 80 MHz / 80 = 1 MHz → 1 tick = 1 µs
   displayTimer = timerBegin(0, 80, true);
@@ -956,6 +881,7 @@ void setup() {
   // przerwanie co FRAME_US (np. 2000 µs → 500 Hz)
   timerAlarmWrite(displayTimer, FRAME_US, true);
   timerAlarmEnable(displayTimer);
+  
   // Tasks
   xTaskCreatePinnedToCore(TimeTask, "Time", 4096, nullptr, 2, nullptr, 1);
   xTaskCreatePinnedToCore(TempTask, "Temp", 4096, nullptr, 1, nullptr, 1);
