@@ -378,14 +378,19 @@ void DisplayTask(void *pv) {
 
 void TimeTask(void *pv) {
   struct tm ti;
+  int lastSec = -1;
+
   for (;;) {
     if (getLocalTime(&ti, 50)) {
-      g_hour = ti.tm_hour;
-      g_minute = ti.tm_min;
-      g_second = ti.tm_sec;
-      g_timeValid = true;
+      if (ti.tm_sec != lastSec) {
+        lastSec = ti.tm_sec;
+        g_hour = ti.tm_hour;
+        g_minute = ti.tm_min;
+        g_second = ti.tm_sec;
+        g_timeValid = true;
+      }
     }
-    vTaskDelay(pdMS_TO_TICKS(1000));
+    vTaskDelay(1);
   }
 }
 
@@ -437,7 +442,19 @@ void LogicTask(void *pv) {
       setDisplayTime(g_hour, g_minute, colon);
     }
 
-    vTaskDelay(pdMS_TO_TICKS(500));
+    //vTaskDelay(pdMS_TO_TICKS(500));
+    static int lastSec = -1;
+
+    if (g_second != lastSec) {
+      lastSec = g_second;
+
+      if (g_showTemp) {
+        setDisplayTemp(g_tempC);
+      } else {
+        setDisplayTime(g_hour, g_minute, colon);
+      }
+    }
+    vTaskDelay(1);
   }
 }
 
@@ -832,6 +849,15 @@ void loadSettings() {
 
 void setupTime() {
   configTzTime("CET-1CEST,M3.5.0/2,M10.5.0/3", "tempus1.gum.gov.pl", "pl.pool.ntp.org", "tempus2.gum.gov.pl");
+  struct tm timeinfo;
+  getLocalTime(&timeinfo);
+  int lastSec = timeinfo.tm_sec;
+
+  while (true) {
+    getLocalTime(&timeinfo);
+    if (timeinfo.tm_sec != lastSec) break;
+    delay(1);
+  }
 }
 
 void setup() {
