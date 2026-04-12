@@ -423,9 +423,9 @@ void LogicTask(void *pv) {
       colon = (g_second % 2) == 0;
 
       uint32_t now = millis();
-      uint32_t phase = now % 15000; // 15‑sekundowy cykl
+      uint32_t phase = now % 20000; // 20‑sekundowy cykl
 
-      g_showTemp = (phase < 5000);  // 0–5 s → temperatura, 5–15 s → czas
+      g_showTemp = (phase < 5000);  // 0–5 s → temperatura, 5–20 s → czas
 
       if (g_showTemp) {
         setDisplayTemp(g_tempC);
