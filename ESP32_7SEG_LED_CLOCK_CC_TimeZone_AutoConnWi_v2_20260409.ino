@@ -335,44 +335,67 @@ uint8_t computeAutoBrightnessFromLDR() {
 // -----------------------------------------------------------------------------
 // Tasks
 // -----------------------------------------------------------------------------
+// void DisplayTask(void *pv) {
+//   // Highest priority, Core 0: guarantees no blanking.
+
+//   // for (;;) {
+//   //   refreshDisplayOnce();
+//   //   vTaskDelay(1); // ~1ms tick; adjust if needed
+//   // }
+
+//   // for (;;) {
+//   //   if (g_otaActive) {
+//   //     // Static OTA message: "otA"
+//   //     g_displaySeg[0] = FONT_o;
+//   //     g_displaySeg[1] = FONT_t;
+//   //     g_displaySeg[2] = FONT_HEX[10]; // A
+//   //     g_displaySeg[3] = FONT_BLANK;
+//   //     // Slow, stable multiplexing during OTA
+//   //     for (int i = 0; i < 4; i++) {
+//   //       allDigitsOff();
+//   //       write595(g_displaySeg[i]);
+//   //       digitOn(i);
+//   //       vTaskDelay(5);
+//   //     }
+//   //     continue;
+//   //   }
+
+//   for (;;) {
+//     if (g_otaActive) {
+//       // Show single stable "A" during OTA (no multiplexing)
+//       allDigitsOff();
+//       write595(FONT_HEX[10]);  // 'A'
+//       digitOn(0);              // show only digit #0 (1st from left)
+//       vTaskDelay(250);         // slow, stable refresh
+//       continue;
+//     }
+
+//     // Normal mode
+//     refreshDisplayOnce();
+//     vTaskDelay(1);
+//   }
+// }
 void DisplayTask(void *pv) {
-  // Highest priority, Core 0: guarantees no blanking.
-
-  // for (;;) {
-  //   refreshDisplayOnce();
-  //   vTaskDelay(1); // ~1ms tick; adjust if needed
-  // }
-
-  // for (;;) {
-  //   if (g_otaActive) {
-  //     // Static OTA message: "otA"
-  //     g_displaySeg[0] = FONT_o;
-  //     g_displaySeg[1] = FONT_t;
-  //     g_displaySeg[2] = FONT_HEX[10]; // A
-  //     g_displaySeg[3] = FONT_BLANK;
-  //     // Slow, stable multiplexing during OTA
-  //     for (int i = 0; i < 4; i++) {
-  //       allDigitsOff();
-  //       write595(g_displaySeg[i]);
-  //       digitOn(i);
-  //       vTaskDelay(5);
-  //     }
-  //     continue;
-  //   }
-
   for (;;) {
     if (g_otaActive) {
-      // Show single stable "A" during OTA (no multiplexing)
+      // OTA: stabilne „A” bez multipleksowania
       allDigitsOff();
       write595(FONT_HEX[10]);  // 'A'
-      digitOn(0);              // show only digit #0 (1st from left)
-      vTaskDelay(250);         // slow, stable refresh
+      digitOn(0);
+      vTaskDelay(250);
       continue;
     }
 
-    // Normal mode
-    refreshDisplayOnce();
-    vTaskDelay(1);
+    // Normalny tryb: pełna rama w jednym przebiegu
+    for (int d = 0; d < 4; d++) {
+      allDigitsOff();
+      write595(g_displaySeg[d]);
+      digitOn(d);
+      delayMicroseconds(500);   // czas świecenia jednej cyfry – do strojenia
+    }
+
+    // lekki yield, bez 1 ms przerwy
+    taskYIELD();
   }
 }
 
