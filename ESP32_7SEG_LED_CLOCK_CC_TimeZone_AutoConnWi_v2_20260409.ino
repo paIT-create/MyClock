@@ -840,14 +840,27 @@ void loadSettings() {
 void setupTime() {
   configTzTime("CET-1CEST,M3.5.0/2,M10.5.0/3", "tempus1.gum.gov.pl", "pl.pool.ntp.org", "tempus2.gum.gov.pl");
   struct tm timeinfo;
-  getLocalTime(&timeinfo);
-  int lastSec = timeinfo.tm_sec;
+  unsigned long start = millis();
 
-  while (true) {
-    getLocalTime(&timeinfo);
-    if (timeinfo.tm_sec != lastSec) break;
-    delay(1);
+  // Czekamy maksymalnie 3 sekundy na prawidłowy czas
+  while (millis() - start < 3000) {
+    if (getLocalTime(&timeinfo)) {
+      if (timeinfo.tm_year + 1900 > 2020) {   // czas jest sensowny
+        int lastSec = timeinfo.tm_sec;
+
+        // Czekamy na przejście do nowej sekundy
+        while (true) {
+          getLocalTime(&timeinfo);
+          if (timeinfo.tm_sec != lastSec) return;
+          delay(1);
+        }
+      }
+    }
+    delay(10);
   }
+
+  // Jeśli tu dotarliśmy → brak synchronizacji NTP
+  // Zegar wystartuje, ale LogicTask pokaże ----
 }
 
 void setup() {
