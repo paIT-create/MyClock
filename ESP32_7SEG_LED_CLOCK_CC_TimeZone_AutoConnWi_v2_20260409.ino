@@ -192,11 +192,18 @@ void IRAM_ATTR onDisplayTimer() {
   if (now - digitStart >= DIGIT_ON_US) {
     digitStart = now;
 
-    allDigitsOff();
-    write595(g_displaySeg[currentDigit]);
-    digitOn(currentDigit);
-
-    currentDigit = (currentDigit + 1) & 0x03;
+    if (g_otaActive) {
+        // podczas OTA wyświetlamy stabilne 'A' na pierwszej cyfrze
+        allDigitsOff();
+        write595(FONT_HEX[10]);  // 'A'
+        digitOn(0);
+    } else {
+        // normalne multipleksowanie
+        allDigitsOff();
+        write595(g_displaySeg[currentDigit]);
+        digitOn(currentDigit);
+        currentDigit = (currentDigit + 1) & 0x03;
+    }
   }
 
   portEXIT_CRITICAL_ISR(&timerMux);
@@ -881,7 +888,7 @@ void setup() {
   // przerwanie co FRAME_US (np. 2000 µs → 500 Hz)
   timerAlarmWrite(displayTimer, FRAME_US, true);
   timerAlarmEnable(displayTimer);
-  
+
   // Tasks
   xTaskCreatePinnedToCore(TimeTask, "Time", 4096, nullptr, 2, nullptr, 1);
   xTaskCreatePinnedToCore(TempTask, "Temp", 4096, nullptr, 1, nullptr, 1);
