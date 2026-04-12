@@ -2,7 +2,7 @@
 BasedOnStyle: LLVM
 
 # Ogólne ustawienia wcięć i spacji
-IndentWidth: 3
+IndentWidth: 2
 TabWidth: 2
 UseTab: Never
 ContinuationIndentWidth: 4
