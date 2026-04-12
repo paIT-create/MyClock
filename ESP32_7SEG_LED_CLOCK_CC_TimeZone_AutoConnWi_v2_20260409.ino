@@ -35,21 +35,21 @@
 // -----------------------------------------------------------------------------
 // Pinout (YOUR PROVIDED PINS)
 // -----------------------------------------------------------------------------
-static const int PIN_595_CLK   = 12;   // SRCLK
-static const int PIN_595_LATCH = 13;   // RCLK
-static const int PIN_595_DATA  = 14;   // SER
+static const int PIN_595_CLK = 12;    // SRCLK
+static const int PIN_595_LATCH = 13;  // RCLK
+static const int PIN_595_DATA = 14;   // SER
 
-static const int PIN_595_OE    = 27;   // OE (PWM brightness). NOTE: OE is active LOW on 74HC595.
-static const int PIN_LDR_ADC   = 34;   // LDR analog input (ADC1)
-static const int PIN_ONEWIRE   = 15;   // DS18B20 data
-static const int PIN_LED       = 2;    // On-board LED
+static const int PIN_595_OE = 27;   // OE (PWM brightness). NOTE: OE is active LOW on 74HC595.
+static const int PIN_LDR_ADC = 34;  // LDR analog input (ADC1)
+static const int PIN_ONEWIRE = 15;  // DS18B20 data
+static const int PIN_LED = 2;       // On-board LED
 
 // Digit select pins (to ULN2803 inputs) for 4 digits (common cathode)
 // Order: leftmost -> rightmost
-static const int PIN_DIGIT_0 = 32;   // 1st digit (ULN2803 pin 1)
-static const int PIN_DIGIT_1 = 33;   // 2nd digit (ULN2803 pin 2)
-static const int PIN_DIGIT_2 = 25;   // 3rd digit (ULN2803 pin 3)
-static const int PIN_DIGIT_3 = 26;   // 4th digit (ULN2803 pin 4)
+static const int PIN_DIGIT_0 = 32;  // 1st digit (ULN2803 pin 1)
+static const int PIN_DIGIT_1 = 33;  // 2nd digit (ULN2803 pin 2)
+static const int PIN_DIGIT_2 = 25;  // 3rd digit (ULN2803 pin 3)
+static const int PIN_DIGIT_3 = 26;  // 4th digit (ULN2803 pin 4)
 
 
 // Your info: enabling a digit is HIGH
@@ -58,57 +58,57 @@ static const bool DIGIT_ENABLE_HIGH = true;
 // -----------------------------------------------------------------------------
 // Display configuration
 // -----------------------------------------------------------------------------
-static const uint8_t SEG_A  = 1 << 0;
-static const uint8_t SEG_B  = 1 << 1;
-static const uint8_t SEG_C  = 1 << 2;
-static const uint8_t SEG_D  = 1 << 3;
-static const uint8_t SEG_E  = 1 << 4;
-static const uint8_t SEG_F  = 1 << 5;
-static const uint8_t SEG_G  = 1 << 6;
+static const uint8_t SEG_A = 1 << 0;
+static const uint8_t SEG_B = 1 << 1;
+static const uint8_t SEG_C = 1 << 2;
+static const uint8_t SEG_D = 1 << 3;
+static const uint8_t SEG_E = 1 << 4;
+static const uint8_t SEG_F = 1 << 5;
+static const uint8_t SEG_G = 1 << 6;
 static const uint8_t SEG_DP = 1 << 7;
 
 // 7-seg font for digits 0-9 (A..G, no DP)
 // Bit layout: 0bDPGFEDCBA
 static const uint8_t FONT_HEX[16] = {
-  SEG_A | SEG_B | SEG_C | SEG_D | SEG_E | SEG_F,         // 0
-  SEG_B | SEG_C,                                         // 1
-  SEG_A | SEG_B | SEG_D | SEG_E | SEG_G,                 // 2
-  SEG_A | SEG_B | SEG_C | SEG_D | SEG_G,                 // 3
-  SEG_B | SEG_C | SEG_F | SEG_G,                         // 4
-  SEG_A | SEG_C | SEG_D | SEG_F | SEG_G,                 // 5
-  SEG_A | SEG_C | SEG_D | SEG_E | SEG_F | SEG_G,         // 6
-  SEG_A | SEG_B | SEG_C,                                 // 7
-  SEG_A | SEG_B | SEG_C | SEG_D | SEG_E | SEG_F | SEG_G, // 8
-  SEG_A | SEG_B | SEG_C | SEG_D | SEG_F | SEG_G,         // 9
-  SEG_A | SEG_B | SEG_C | SEG_E | SEG_F | SEG_G,         // A
-  SEG_C | SEG_D | SEG_E | SEG_F | SEG_G,                 // b
-  SEG_A | SEG_D | SEG_E | SEG_F,                         // C
-  SEG_B | SEG_C | SEG_D | SEG_E | SEG_G,                 // d
-  SEG_A | SEG_D | SEG_E | SEG_F | SEG_G,                 // E
-  SEG_A | SEG_E | SEG_F | SEG_G                          // F
+  SEG_A | SEG_B | SEG_C | SEG_D | SEG_E | SEG_F,          // 0
+  SEG_B | SEG_C,                                          // 1
+  SEG_A | SEG_B | SEG_D | SEG_E | SEG_G,                  // 2
+  SEG_A | SEG_B | SEG_C | SEG_D | SEG_G,                  // 3
+  SEG_B | SEG_C | SEG_F | SEG_G,                          // 4
+  SEG_A | SEG_C | SEG_D | SEG_F | SEG_G,                  // 5
+  SEG_A | SEG_C | SEG_D | SEG_E | SEG_F | SEG_G,          // 6
+  SEG_A | SEG_B | SEG_C,                                  // 7
+  SEG_A | SEG_B | SEG_C | SEG_D | SEG_E | SEG_F | SEG_G,  // 8
+  SEG_A | SEG_B | SEG_C | SEG_D | SEG_F | SEG_G,          // 9
+  SEG_A | SEG_B | SEG_C | SEG_E | SEG_F | SEG_G,          // A
+  SEG_C | SEG_D | SEG_E | SEG_F | SEG_G,                  // b
+  SEG_A | SEG_D | SEG_E | SEG_F,                          // C
+  SEG_B | SEG_C | SEG_D | SEG_E | SEG_G,                  // d
+  SEG_A | SEG_D | SEG_E | SEG_F | SEG_G,                  // E
+  SEG_A | SEG_E | SEG_F | SEG_G                           // F
 };
 
 // Znaki specjalne do temperatury itp. (dokładne maski bitowe)
-static const uint8_t FONT_MINUS  = SEG_G;
-static const uint8_t FONT_BLANK  = 0;
-static const uint8_t FONT_DEGREE = SEG_A | SEG_B | SEG_F | SEG_G; // °
-static const uint8_t FONT_C      = SEG_A | SEG_D | SEG_E | SEG_F; // C
-static const uint8_t FONT_o = SEG_C | SEG_D | SEG_E | SEG_G;      // o
-static const uint8_t FONT_t = SEG_D | SEG_E | SEG_F | SEG_G;      // t
+static const uint8_t FONT_MINUS = SEG_G;
+static const uint8_t FONT_BLANK = 0;
+static const uint8_t FONT_DEGREE = SEG_A | SEG_B | SEG_F | SEG_G;  // °
+static const uint8_t FONT_C = SEG_A | SEG_D | SEG_E | SEG_F;       // C
+static const uint8_t FONT_o = SEG_C | SEG_D | SEG_E | SEG_G;       // o
+static const uint8_t FONT_t = SEG_D | SEG_E | SEG_F | SEG_G;       // t
 
 // -----------------------------------------------------------------------------
 // Shared state (written by tasks, read by DisplayTask)
 // -----------------------------------------------------------------------------
-volatile uint8_t g_displaySeg[4] = {0, 0, 0, 0};  // raw segment bytes (incl DP)
+volatile uint8_t g_displaySeg[4] = { 0, 0, 0, 0 };  // raw segment bytes (incl DP)
 volatile uint8_t g_activeDigit = 0;
 
-volatile int   g_hour   = 0;
-volatile int   g_minute = 0;
-volatile int   g_second = 0;
-volatile float g_tempC  = NAN;
+volatile int g_hour = 0;
+volatile int g_minute = 0;
+volatile int g_second = 0;
+volatile float g_tempC = NAN;
 
-volatile bool  g_showTemp = false;
-volatile bool  g_showBootId = true;
+volatile bool g_showTemp = false;
+volatile bool g_showBootId = true;
 
 volatile bool g_timeValid = false;
 volatile bool g_tempValid = false;
@@ -120,8 +120,8 @@ volatile bool g_otaActive = false;
 
 // Brightness control
 Preferences prefs;
-volatile bool  g_autoBrightness = true;   // can be persisted later if you want
-volatile uint8_t g_brightness = 120;      // 0..255 (logical brightness)
+volatile bool g_autoBrightness = true;  // can be persisted later if you want
+volatile uint8_t g_brightness = 120;    // 0..255 (logical brightness)
 
 // -----------------------------------------------------------------------------
 // WiFi / Portal
@@ -132,7 +132,7 @@ AutoConnectConfig portalConfig;
 AutoConnectOTA ota;
 String g_hostName;
 String g_deviceId;
-char id[5] = {0};   // 4 hex + '\0'
+char id[5] = { 0 };  // 4 hex + '\0'
 
 // -----------------------------------------------------------------------------
 // DS18B20
@@ -213,16 +213,16 @@ void showBootId4() {
 
   commitDisplayBuffer();
 
-  delay(5000);   // tylko raz ! przy starcie
+  delay(5000);  // tylko raz ! przy starcie
   g_showBootId = false;
 }
 
 int getDS18B20Resolution() {
   DeviceAddress addr;
   if (!sensors.getAddress(addr, 0)) {
-    return -1; // brak czujnika
+    return -1;  // brak czujnika
   }
-  return sensors.getResolution(addr); // zwraca 9,10,11,12
+  return sensors.getResolution(addr);  // zwraca 9,10,11,12
 }
 
 void setDisplayTime(int hh, int mm, bool colonOn) {
@@ -233,7 +233,7 @@ void setDisplayTime(int hh, int mm, bool colonOn) {
 
   // Colon simulation: DP on digit1 (adjust if you prefer other digit)
   if (colonOn) s1 |= SEG_DP;
-  else         s1 &= ~SEG_DP;
+  else s1 &= ~SEG_DP;
 
   g_displayNext[0] = s0;
   g_displayNext[1] = s1;
@@ -285,8 +285,8 @@ void commitDisplayBuffer() {
 // Brightness: OE PWM + optional LDR auto brightness
 // -----------------------------------------------------------------------------
 static const int PWM_CH = 0;
-static const int PWM_FREQ = 20000;   // 20 kHz (inaudible, stable)
-static const int PWM_RES  = 8;       // 0..255
+static const int PWM_FREQ = 20000;  // 20 kHz (inaudible, stable)
+static const int PWM_RES = 8;       // 0..255
 
 // OE is active LOW: duty=0 -> always LOW -> full ON; duty=255 -> mostly HIGH -> dim/off
 static inline void applyBrightness(uint8_t logical) {
@@ -307,8 +307,8 @@ uint8_t computeAutoBrightnessFromLDR() {
   // Calibration points (ADC values)
   // DARK  → high ADC
   // BRIGHT → low ADC
-  const float RAW_DARK   = 3900;  // adjust after measurements
-  const float RAW_BRIGHT = 900;   // adjust after measurements
+  const float RAW_DARK = 3900;   // adjust after measurements
+  const float RAW_BRIGHT = 900;  // adjust after measurements
 
   // Normalize: 0 = dark, 1 = bright
   float x = (RAW_DARK - ema) / (RAW_DARK - RAW_BRIGHT);
@@ -337,12 +337,12 @@ uint8_t computeAutoBrightnessFromLDR() {
 // -----------------------------------------------------------------------------
 void DisplayTask(void *pv) {
   // Highest priority, Core 0: guarantees no blanking.
-  
+
   // for (;;) {
   //   refreshDisplayOnce();
   //   vTaskDelay(1); // ~1ms tick; adjust if needed
   // }
-  
+
   // for (;;) {
   //   if (g_otaActive) {
   //     // Static OTA message: "otA"
@@ -359,17 +359,17 @@ void DisplayTask(void *pv) {
   //     }
   //     continue;
   //   }
-  
+
   for (;;) {
     if (g_otaActive) {
       // Show single stable "A" during OTA (no multiplexing)
       allDigitsOff();
-      write595(FONT_HEX[10]);   // 'A'
-      digitOn(0);               // show only digit #0 (1st from left)
-      vTaskDelay(250);          // slow, stable refresh
+      write595(FONT_HEX[10]);  // 'A'
+      digitOn(0);              // show only digit #0 (1st from left)
+      vTaskDelay(250);         // slow, stable refresh
       continue;
     }
-    
+
     // Normal mode
     refreshDisplayOnce();
     vTaskDelay(1);
@@ -392,8 +392,8 @@ void TimeTask(void *pv) {
 void TempTask(void *pv) {
   // DS18B20 conversion is slow; keep it away from display timing.
   for (;;) {
-    sensors.requestTemperatures();          // start conversion (non-blocking due to setWaitForConversion(false))
-    vTaskDelay(pdMS_TO_TICKS(800));         // wait conversion (does not affect display)
+    sensors.requestTemperatures();   // start conversion (non-blocking due to setWaitForConversion(false))
+    vTaskDelay(pdMS_TO_TICKS(800));  // wait conversion (does not affect display)
     float t = sensors.getTempCByIndex(0);
     if (!isnan(t)) {
       g_tempC = t;
@@ -417,16 +417,16 @@ void LogicTask(void *pv) {
     if (!g_timeValid || !g_tempValid) {
       setDisplayDashes();
       vTaskDelay(pdMS_TO_TICKS(200));
-      continue;   // jesteśmy wewnątrz pętli -> OK
+      continue;  // jesteśmy wewnątrz pętli -> OK
     }
     uint32_t now = millis();
 
-    uint32_t phase = now % 15000;   // 15‑sekundowy cykl
+    uint32_t phase = now % 15000;  // 15‑sekundowy cykl
 
     if (phase < 5000) {
-      g_showTemp = true;    // 0–5 s → temperatura
+      g_showTemp = true;  // 0–5 s → temperatura
     } else {
-      g_showTemp = false;   // 5–15 s → czas
+      g_showTemp = false;  // 5–15 s → czas
     }
 
     colon = !colon;
@@ -466,14 +466,14 @@ void WiFiTask(void *pv) {
   showBootId4();
 
   portalConfig.autoReconnect = true;
-  portalConfig.retainPortal  = true;
-  portalConfig.apid          = String("ESP32-Clock-") + id;
-  portalConfig.psk           = "12345678";
-  portalConfig.hostName      = g_hostName.c_str();
+  portalConfig.retainPortal = true;
+  portalConfig.apid = String("ESP32-Clock-") + id;
+  portalConfig.psk = "12345678";
+  portalConfig.hostName = g_hostName.c_str();
   // enable the credentials removal feature in OpenSSIDs menu
-  portalConfig.menuItems     = portalConfig.menuItems | AC_MENUITEM_DELETESSID;
+  portalConfig.menuItems = portalConfig.menuItems | AC_MENUITEM_DELETESSID;
   portal.config(portalConfig);
-  
+
   // OTA callbacks
   ota.onStart([]() {
     g_otaActive = true;
@@ -481,7 +481,7 @@ void WiFiTask(void *pv) {
   ota.onEnd([]() {
     g_otaActive = false;
   });
-  
+
   // --- ROOT -> /status redirect (HOME button fix) ---
   server.on("/", HTTP_GET, []() {
     server.sendHeader("Location", "/config", true);
@@ -513,7 +513,7 @@ void WiFiTask(void *pv) {
   });
   // --- Config endpoint ---
   server.on("/config", HTTP_GET, []() {
-  String html = R"rawliteral(
+    String html = R"rawliteral(
 <!DOCTYPE html>
 <html>
 <head>
@@ -745,8 +745,8 @@ window.onload = loadStatus;
 </html>
 )rawliteral";
 
-  server.send(200, "text/html", html);
-});
+    server.send(200, "text/html", html);
+  });
 
   // --- Set endpoint ---
   server.on("/set", []() {
@@ -843,7 +843,7 @@ void setup() {
   loadSettings();
   initDisplayHardware();
   pinMode(PIN_595_OE, OUTPUT);
-  digitalWrite(PIN_595_OE, HIGH);   // OE aktywne LOW → HIGH = wyłączone
+  digitalWrite(PIN_595_OE, HIGH);  // OE aktywne LOW → HIGH = wyłączone
   // Ustawiamy wyświetlacz w stan stabilny PRZED startem tasków
   g_displayNext[0] = FONT_MINUS;
   g_displayNext[1] = FONT_MINUS;
@@ -853,7 +853,7 @@ void setup() {
   g_activeDigit = 0;
   // Twarde wygaszenie wszystkich cyfr (ULN2803)
   allDigitsOff();
-  write595(0);   // wyczyść 74HC595
+  write595(0);  // wyczyść 74HC595
 
   initBrightnessHardware();
 
@@ -863,12 +863,12 @@ void setup() {
   setupTime();
 
   // Tasks
-  xTaskCreatePinnedToCore(DisplayTask,     "Display",    2048, nullptr, 3, nullptr, 0);
-  xTaskCreatePinnedToCore(TimeTask,        "Time",       4096, nullptr, 2, nullptr, 1);
-  xTaskCreatePinnedToCore(TempTask,        "Temp",       4096, nullptr, 1, nullptr, 1);
-  xTaskCreatePinnedToCore(LogicTask,       "Logic",      4096, nullptr, 1, nullptr, 1);
-  xTaskCreatePinnedToCore(BrightnessTask,  "Brightness", 2048, nullptr, 1, nullptr, 1);
-  xTaskCreatePinnedToCore(WiFiTask,        "WiFi",       8192, nullptr, 1, nullptr, 1);
+  xTaskCreatePinnedToCore(DisplayTask, "Display", 2048, nullptr, 3, nullptr, 0);
+  xTaskCreatePinnedToCore(TimeTask, "Time", 4096, nullptr, 2, nullptr, 1);
+  xTaskCreatePinnedToCore(TempTask, "Temp", 4096, nullptr, 1, nullptr, 1);
+  xTaskCreatePinnedToCore(LogicTask, "Logic", 4096, nullptr, 1, nullptr, 1);
+  xTaskCreatePinnedToCore(BrightnessTask, "Brightness", 2048, nullptr, 1, nullptr, 1);
+  xTaskCreatePinnedToCore(WiFiTask, "WiFi", 8192, nullptr, 1, nullptr, 1);
 
   // loop() intentionally unused
 }
