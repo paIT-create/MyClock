@@ -335,9 +335,11 @@ uint8_t computeAutoBrightnessFromLDR() {
   // Calibration points (ADC values)
   // DARK  → high ADC
   // BRIGHT → low ADC
+  
   // --- OBUDOWA WOOD ---
   // const float RAW_DARK = 3900;   // adjust after measurements
   // const float RAW_BRIGHT = 900;  // adjust after measurements
+  
   // --- OBUDOWA PLA ---
   const float RAW_DARK = 2500;   // adjust after measurements
   const float RAW_BRIGHT = 900;  // adjust after measurements
