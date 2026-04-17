@@ -342,7 +342,7 @@ uint8_t computeAutoBrightnessFromLDR() {
   
   // --- OBUDOWA PLA ---
   const float RAW_DARK = 2500;   // adjust after measurements
-  const float RAW_BRIGHT = 900;  // adjust after measurements
+  const float RAW_BRIGHT = 100;  // adjust after measurements
 
   // Normalize: 0 = dark, 1 = bright
   float x = (RAW_DARK - ema) / (RAW_DARK - RAW_BRIGHT);
