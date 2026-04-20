@@ -555,7 +555,9 @@ void WiFiWatchdogTask(void *pv) {
               WiFi.enableAP(false);
               // 3) upewnij się, że tryb to STA
               WiFi.mode(WIFI_STA);
-              // 4) zatrzymaj miganie LED i DP
+              // 4) uruchom portal ponownie, ale już bez AP
+              portal.begin();
+              // 5) zatrzymaj miganie LED i DP
               g_apMode = false;
           }
           goto watchdog_sleep;
@@ -585,6 +587,8 @@ void WiFiWatchdogTask(void *pv) {
             WiFi.enableAP(false);
             // 3) upewnij się, że tryb to STA
             WiFi.mode(WIFI_STA);
+            // 4) uruchom portal ponownie, ale już bez AP
+            portal.begin();
             // 4) zatrzymaj miganie LED i DP
             g_apMode = false;
         }
@@ -619,6 +623,8 @@ void WiFiWatchdogTask(void *pv) {
                 WiFi.enableAP(false);
                 // 3) upewnij się, że tryb to STA
                 WiFi.mode(WIFI_STA);
+                // 4) uruchom portal ponownie, ale już bez AP
+                portal.begin();
                 // 4) zatrzymaj miganie LED i DP
                 g_apMode = false;
             }
