@@ -121,6 +121,8 @@ volatile bool g_showBootId = true;
 
 volatile bool g_timeValid = false;
 volatile bool g_tempValid = false;
+// WiFi watchdog flag
+volatile bool g_wifiLost = false;
 
 uint8_t g_displayNext[4];
 
@@ -834,8 +836,24 @@ void loadSettings() {
 }
 
 void setupTime() {
-  // configTzTime("CET-1CEST,M3.5.0/2,M10.5.0/3", "tempus1.gum.gov.pl", "pl.pool.ntp.org", "tempus2.gum.gov.pl");
-  configTzTime("CET-1CEST,M3.5.0/2,M4.3.1/9", "tempus1.gum.gov.pl", "pl.pool.ntp.org", "tempus2.gum.gov.pl");
+  /* TESTY ZMIANY CZASU
+  //configTzTime("CET-1CEST,M3.5.0/2,M4.3.1/9", "tempus1.gum.gov.pl", "pl.pool.ntp.org", "tempus2.gum.gov.pl");
+  M3.5.0/2 — początek czasu letniego
+  Format: M<miesiąc>.<tydzień>.<dzień tygodnia>/<godzina>
+  M3 – marzec
+  5 – piąty tydzień miesiąca (czyli ostatnia niedziela marca)
+  0 – niedziela
+  /2 – o godzinie 2:00 czasu lokalnego
+  Start DST: ostatnia niedziela marca o 02:00
+
+  M10.5.0/3 — koniec czasu letniego
+  M10 – październik
+  5 – piąty tydzień (ostatnia niedziela października)
+  0 – niedziela
+  /3 – o godzinie 3:00 czasu lokalnego
+  Koniec DST: ostatnia niedziela października o 03:00
+  */
+  configTzTime("CET-1CEST,M3.5.0/2,M10.5.0/3", "tempus1.gum.gov.pl", "pl.pool.ntp.org", "tempus2.gum.gov.pl");
   struct tm timeinfo;
   unsigned long start = millis();
 
