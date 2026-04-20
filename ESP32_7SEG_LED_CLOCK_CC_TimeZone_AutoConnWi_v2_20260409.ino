@@ -551,7 +551,6 @@ void WiFiWatchdogTask(void *pv) {
               Serial.println("[WiFi] Wyłączam AP (powrót do trybu STA).");
               // 1) zatrzymaj portal AutoConnect
               portal.end();
-              portal.stop();
               // 2) wyłącz AP w ESP32
               WiFi.enableAP(false);
               // 3) upewnij się, że tryb to STA
@@ -582,7 +581,6 @@ void WiFiWatchdogTask(void *pv) {
             Serial.println("[WiFi] Wyłączam AP (powrót do trybu STA).");
             // 1) zatrzymaj portal AutoConnect
             portal.end();
-            portal.stop();
             // 2) wyłącz AP w ESP32
             WiFi.enableAP(false);
             // 3) upewnij się, że tryb to STA
@@ -617,7 +615,6 @@ void WiFiWatchdogTask(void *pv) {
                 Serial.println("[WiFi] Wyłączam AP (powrót do trybu STA).");
                 // 1) zatrzymaj portal AutoConnect
                 portal.end();
-                portal.stop();
                 // 2) wyłącz AP w ESP32
                 WiFi.enableAP(false);
                 // 3) upewnij się, że tryb to STA
