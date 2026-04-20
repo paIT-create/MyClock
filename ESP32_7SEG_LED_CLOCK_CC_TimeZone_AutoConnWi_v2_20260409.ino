@@ -440,6 +440,12 @@ void LogicTask(void *pv) {
       } else {
         setDisplayTime(g_hour, g_minute, colon);
       }
+      // --- sygnalizacja braku WiFi: kropka w prawej cyfrze ---
+      if (g_wifiLost) {
+        // ustaw DP w czwartej cyfrze
+        g_displayNext[3] |= SEG_DP;
+        commitDisplayBuffer();
+      }
     }
 
     vTaskDelay(1);
@@ -458,6 +464,84 @@ void BrightnessTask(void *pv) {
   }
 }
 
+// -----------------------------------------------------------------------------
+// WiFi Watchdog Task — automatyczne odzyskiwanie połączenia + fallback
+// -----------------------------------------------------------------------------
+void WiFiWatchdogTask(void *pv) {
+  AutoConnectCredential ac;
+  AutoConnectCredential::Entry e;
+
+  for (;;) {
+    if (WiFi.status() != WL_CONNECTED) {
+
+      if (!g_wifiLost) {
+        Serial.println("[WiFi] Utracono połączenie.");
+      }
+      g_wifiLost = true;
+
+      // --- 3 szybkie próby reconnect() ---
+      for (int i = 1; i <= 3; i++) {
+        Serial.printf("[WiFi] reconnect() próba %d/3\n", i);
+        WiFi.reconnect();
+        vTaskDelay(pdMS_TO_TICKS(3000));
+
+        if (WiFi.status() == WL_CONNECTED) {
+          Serial.println("[WiFi] Połączenie odzyskane (reconnect).");
+          g_wifiLost = false;
+          goto watchdog_sleep;
+        }
+      }
+
+      // --- pełne rozłączenie ---
+      Serial.println("[WiFi] reconnect() nieudany. Wykonuję disconnect(true).");
+      WiFi.disconnect(true);
+      vTaskDelay(pdMS_TO_TICKS(500));
+
+      // --- próba połączenia z ostatnią siecią ---
+      Serial.println("[WiFi] Próba ponownego połączenia z ostatnią siecią...");
+      WiFi.begin();
+      vTaskDelay(pdMS_TO_TICKS(5000));
+
+      if (WiFi.status() == WL_CONNECTED) {
+        Serial.println("[WiFi] Połączono ponownie z ostatnią siecią.");
+        g_wifiLost = false;
+        goto watchdog_sleep;
+      }
+
+      // --- fallback: zapisane sieci AutoConnect ---
+      Serial.println("[WiFi] Główna sieć niedostępna. Sprawdzam zapisane sieci AutoConnect...");
+
+      uint8_t count = ac.entries();
+      Serial.printf("[WiFi] Liczba zapisanych sieci: %d\n", count);
+
+      for (uint8_t i = 0; i < count; i++) {
+        ac.load(i, &e);
+
+        Serial.printf("[WiFi] Próba połączenia z: %s\n", e.ssid.c_str());
+        WiFi.begin(e.ssid.c_str(), e.passphrase.c_str());
+        vTaskDelay(pdMS_TO_TICKS(6000));
+
+        if (WiFi.status() == WL_CONNECTED) {
+          Serial.printf("[WiFi] Połączono z %s\n", e.ssid.c_str());
+          g_wifiLost = false;
+          goto watchdog_sleep;
+        }
+      }
+
+      Serial.println("[WiFi] Żadna z zapisanych sieci nie działa. Kolejna próba za 5 sekund.");
+    }
+    else {
+      if (g_wifiLost) {
+        Serial.println("[WiFi] Połączenie OK.");
+      }
+      g_wifiLost = false;
+    }
+
+watchdog_sleep:
+    vTaskDelay(pdMS_TO_TICKS(5000));
+  }
+}
+
 void WiFiTask(void *pv) {
   uint8_t mac[6];
   esp_read_mac(mac, ESP_MAC_WIFI_STA);
@@ -473,7 +557,7 @@ void WiFiTask(void *pv) {
   portalConfig.autoReconnect = true;
   portalConfig.retainPortal = true;
   portalConfig.apid = String("ESP32-Clock-") + id;
-  portalConfig.psk = "12345678";
+  portalConfig.psk = "Al@m@kot@";
   portalConfig.hostName = g_hostName.c_str();
   // enable the credentials removal feature in OpenSSIDs menu
   portalConfig.menuItems = portalConfig.menuItems | AC_MENUITEM_DELETESSID;
@@ -920,7 +1004,7 @@ void setup() {
   xTaskCreatePinnedToCore(LogicTask, "Logic", 4096, nullptr, 1, nullptr, 1);
   xTaskCreatePinnedToCore(BrightnessTask, "Brightness", 2048, nullptr, 1, nullptr, 1);
   xTaskCreatePinnedToCore(WiFiTask, "WiFi", 8192, nullptr, 1, nullptr, 1);
-
+  xTaskCreatePinnedToCore(WiFiWatchdogTask, "WiFiWatchdog", 4096, nullptr, 1, nullptr, 1);
   // loop() intentionally unused
 }
 
