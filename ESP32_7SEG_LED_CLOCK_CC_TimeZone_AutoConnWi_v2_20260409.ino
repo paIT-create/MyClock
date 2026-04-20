@@ -463,7 +463,35 @@ void BrightnessTask(void *pv) {
     vTaskDelay(pdMS_TO_TICKS(200));
   }
 }
+// -----------------------------------------------------------------------------
+// AP Indicator Task — miganie DP i/lub LED w trybie AP
+// -----------------------------------------------------------------------------
+void APIndicatorTask(void *pv) {
+  bool ledState = false;
 
+  for (;;) {
+    wifi_mode_t mode = WiFi.getMode();
+
+    bool apMode = (mode == WIFI_AP) || (mode == WIFI_AP_STA);
+
+    if (apMode) {
+      // Miganie LED (GPIO2)
+      ledState = !ledState;
+      digitalWrite(PIN_LED, ledState ? HIGH : LOW);
+
+      // Miganie DP na czwartej cyfrze
+      g_displayNext[3] ^= SEG_DP;   // toggle DP
+      commitDisplayBuffer();
+
+      vTaskDelay(pdMS_TO_TICKS(250));  // 1 Hz (500ms ON, 500ms OFF)
+    }
+    else {
+      // Tryb STA — LED OFF, DP kontrolowany przez LogicTask/watchdog
+      digitalWrite(PIN_LED, LOW);
+      vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+  }
+}
 // -----------------------------------------------------------------------------
 // WiFi Watchdog Task — automatyczne odzyskiwanie połączenia + fallback
 // -----------------------------------------------------------------------------
@@ -1008,6 +1036,7 @@ void setup() {
   xTaskCreatePinnedToCore(BrightnessTask, "Brightness", 2048, nullptr, 1, nullptr, 1);
   xTaskCreatePinnedToCore(WiFiTask, "WiFi", 8192, nullptr, 1, nullptr, 1);
   xTaskCreatePinnedToCore(WiFiWatchdogTask, "WiFiWatchdog", 4096, nullptr, 1, nullptr, 1);
+  xTaskCreatePinnedToCore(APIndicatorTask, "APIndicator", 2048, nullptr, 1, nullptr, 1);
   // loop() intentionally unused
 }
 
