@@ -469,7 +469,7 @@ void BrightnessTask(void *pv) {
 // -----------------------------------------------------------------------------
 void WiFiWatchdogTask(void *pv) {
   AutoConnectCredential ac;
-  AutoConnectCredential::Entry e;
+  station_config_t cfg;
 
   for (;;) {
     if (WiFi.status() != WL_CONNECTED) {
@@ -511,20 +511,23 @@ void WiFiWatchdogTask(void *pv) {
       // --- fallback: zapisane sieci AutoConnect ---
       Serial.println("[WiFi] Główna sieć niedostępna. Sprawdzam zapisane sieci AutoConnect...");
 
-      uint8_t count = ac.entries();
+      int count = ac.entries();
       Serial.printf("[WiFi] Liczba zapisanych sieci: %d\n", count);
 
-      for (uint8_t i = 0; i < count; i++) {
-        ac.load(i, &e);
+      for (int i = 0; i < count; i++) {
+        memset(&cfg, 0, sizeof(cfg));
 
-        Serial.printf("[WiFi] Próba połączenia z: %s\n", e.ssid.c_str());
-        WiFi.begin(e.ssid.c_str(), e.passphrase.c_str());
-        vTaskDelay(pdMS_TO_TICKS(6000));
+        if (ac.load(i, &cfg)) {
+          Serial.printf("[WiFi] Próba połączenia z: %s\n", cfg.ssid);
 
-        if (WiFi.status() == WL_CONNECTED) {
-          Serial.printf("[WiFi] Połączono z %s\n", e.ssid.c_str());
-          g_wifiLost = false;
-          goto watchdog_sleep;
+          WiFi.begin((char*)cfg.ssid, (char*)cfg.password);
+          vTaskDelay(pdMS_TO_TICKS(6000));
+
+          if (WiFi.status() == WL_CONNECTED) {
+            Serial.printf("[WiFi] Połączono z %s\n", cfg.ssid);
+            g_wifiLost = false;
+            goto watchdog_sleep;
+          }
         }
       }
 
