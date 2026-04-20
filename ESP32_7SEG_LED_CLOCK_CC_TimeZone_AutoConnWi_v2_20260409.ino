@@ -337,12 +337,12 @@ uint8_t computeAutoBrightnessFromLDR() {
   // BRIGHT → low ADC
   
   // --- OBUDOWA WOOD ---
-  // const float RAW_DARK = 3900;   // adjust after measurements
-  // const float RAW_BRIGHT = 900;  // adjust after measurements
+  const float RAW_DARK = 3900;   // adjust after measurements
+  const float RAW_BRIGHT = 900;  // adjust after measurements
   
   // --- OBUDOWA PLA ---
-  const float RAW_DARK = 2500;   // adjust after measurements
-  const float RAW_BRIGHT = 50;  // adjust after measurements
+  // const float RAW_DARK = 2500;   // adjust after measurements
+  // const float RAW_BRIGHT = 50;  // adjust after measurements
 
   // Normalize: 0 = dark, 1 = bright
   float x = (RAW_DARK - ema) / (RAW_DARK - RAW_BRIGHT);
@@ -834,7 +834,8 @@ void loadSettings() {
 }
 
 void setupTime() {
-  configTzTime("CET-1CEST,M3.5.0/2,M10.5.0/3", "tempus1.gum.gov.pl", "pl.pool.ntp.org", "tempus2.gum.gov.pl");
+  // configTzTime("CET-1CEST,M3.5.0/2,M10.5.0/3", "tempus1.gum.gov.pl", "pl.pool.ntp.org", "tempus2.gum.gov.pl");
+  configTzTime("CET-1CEST,M3.5.0/2,M4.3.1/9", "tempus1.gum.gov.pl", "pl.pool.ntp.org", "tempus2.gum.gov.pl");
   struct tm timeinfo;
   unsigned long start = millis();
 
