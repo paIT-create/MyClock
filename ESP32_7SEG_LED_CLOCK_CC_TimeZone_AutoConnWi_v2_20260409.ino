@@ -660,7 +660,7 @@ void WiFiTask(void *pv) {
   showBootId4();
 
   portalConfig.autoReconnect = true;
-  portalConfig.retainPortal = true;
+  portalConfig.retainPortal = false;
   portalConfig.apid = String("ESP32-Clock-") + id;
   portalConfig.psk = "Al@m@kot@";
   portalConfig.hostName = g_hostName.c_str();
