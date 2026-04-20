@@ -408,66 +408,79 @@ void TempTask(void *pv) {
 }
 
 void LogicTask(void *pv) {
-  // Prepares display buffer only.
   static int lastSec = -1;
   bool colon;
 
   for (;;) {
+
     // czekaj na koniec show boot ID
     if (g_showBootId) {
       vTaskDelay(pdMS_TO_TICKS(50));
       continue;
     }
+
     // --- STARTUP: czekamy aż czas i temperatura będą gotowe ---
     if (!g_timeValid || !g_tempValid) {
       setDisplayDashes();
+      commitDisplayBuffer();
       vTaskDelay(pdMS_TO_TICKS(200));
-      continue;  // jesteśmy wewnątrz pętli -> OK
+      continue;
     }
-    // czekamy na zmianę sekundy
+
+    // --- aktualizacja wyświetlacza tylko przy zmianie sekundy ---
     if (g_second != lastSec) {
       lastSec = g_second;
 
-      // miganie zsynchronizowane z czasem
+      // miganie dwukropka zsynchronizowane z czasem
       colon = (g_second % 2) == 0;
 
       uint32_t now = millis();
-      uint32_t phase = now % 20000; // 20‑sekundowy cykl
+      uint32_t phase = now % 20000;   // 20‑sekundowy cykl
 
-      g_showTemp = (phase < 5000);  // 0–5 s → temperatura, 5–20 s → czas
+      g_showTemp = (phase < 5000);    // 0–5 s → temperatura, 5–20 s → czas
 
       if (g_showTemp) {
         setDisplayTemp(g_tempC);
       } else {
         setDisplayTime(g_hour, g_minute, colon);
       }
-      // --- sygnalizacja DP: AP > WiFiLost > normal ---
-      // 1) Tryb AP → miganie 1 Hz
-      if (g_apMode) {
-        static uint32_t lastToggle = 0;
-        static bool apBlink = false;
+    }
 
-      uint32_t now = millis();
-        if (now - lastToggle >= 500) {   // 500 ms → 1 Hz
-          lastToggle = now;
-          apBlink = !apBlink;
-        }
+    // -------------------------------------------------------------------------
+    // --- sygnalizacja DP: AP > WiFiLost > normal ---
+    // -------------------------------------------------------------------------
 
-        if (apBlink) {
-          g_displayNext[3] |= SEG_DP;
-        } else {
-          g_displayNext[3] &= ~SEG_DP;
-        }
+    // 1) Tryb AP → miganie 1 Hz
+    if (g_apMode) {
+      static uint32_t lastToggle = 0;
+      static bool apBlink = false;
+
+      uint32_t nowBlink = millis();
+      if (nowBlink - lastToggle >= 500) {   // 500 ms → 1 Hz
+        lastToggle = nowBlink;
+        apBlink = !apBlink;
       }
-      // 2) Brak WiFi (ale NIE AP) → DP świeci stale
-      else if (g_wifiLost) {
+
+      if (apBlink) {
         g_displayNext[3] |= SEG_DP;
-      }
-      // 3) Normalne WiFi → DP wyłączona
-      else {
+      } else {
         g_displayNext[3] &= ~SEG_DP;
       }
     }
+
+    // 2) Brak WiFi (ale NIE AP) → DP świeci stale
+    else if (g_wifiLost) {
+      g_displayNext[3] |= SEG_DP;
+    }
+
+    // 3) Normalne WiFi → DP wyłączona
+    else {
+      g_displayNext[3] &= ~SEG_DP;
+    }
+
+    // --- wyślij bufor na wyświetlacz ---
+    commitDisplayBuffer();
+
     vTaskDelay(1);
   }
 }
