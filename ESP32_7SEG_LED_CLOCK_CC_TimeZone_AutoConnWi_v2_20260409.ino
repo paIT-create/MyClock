@@ -545,6 +545,20 @@ void WiFiWatchdogTask(void *pv) {
         if (WiFi.status() == WL_CONNECTED) {
           Serial.println("[WiFi] Połączenie odzyskane (reconnect).");
           g_wifiLost = false;
+          // --- WYŁĄCZ AP jeśli nadal działa ---
+          wifi_mode_t mode = WiFi.getMode();
+          if (mode == WIFI_AP_STA || mode == WIFI_AP) {
+              Serial.println("[WiFi] Wyłączam AP (powrót do trybu STA).");
+              // 1) zatrzymaj portal AutoConnect
+              portal.end();
+              portal.stop();
+              // 2) wyłącz AP w ESP32
+              WiFi.enableAP(false);
+              // 3) upewnij się, że tryb to STA
+              WiFi.mode(WIFI_STA);
+              // 4) zatrzymaj miganie LED i DP
+              g_apMode = false;
+          }
           goto watchdog_sleep;
         }
       }
@@ -562,6 +576,20 @@ void WiFiWatchdogTask(void *pv) {
       if (WiFi.status() == WL_CONNECTED) {
         Serial.println("[WiFi] Połączono ponownie z ostatnią siecią.");
         g_wifiLost = false;
+        // --- WYŁĄCZ AP jeśli nadal działa ---
+        wifi_mode_t mode = WiFi.getMode();
+        if (mode == WIFI_AP_STA || mode == WIFI_AP) {
+            Serial.println("[WiFi] Wyłączam AP (powrót do trybu STA).");
+            // 1) zatrzymaj portal AutoConnect
+            portal.end();
+            portal.stop();
+            // 2) wyłącz AP w ESP32
+            WiFi.enableAP(false);
+            // 3) upewnij się, że tryb to STA
+            WiFi.mode(WIFI_STA);
+            // 4) zatrzymaj miganie LED i DP
+            g_apMode = false;
+        }
         goto watchdog_sleep;
       }
 
@@ -583,6 +611,20 @@ void WiFiWatchdogTask(void *pv) {
           if (WiFi.status() == WL_CONNECTED) {
             Serial.printf("[WiFi] Połączono z %s\n", cfg.ssid);
             g_wifiLost = false;
+             // --- WYŁĄCZ AP jeśli nadal działa ---
+            wifi_mode_t mode = WiFi.getMode();
+            if (mode == WIFI_AP_STA || mode == WIFI_AP) {
+                Serial.println("[WiFi] Wyłączam AP (powrót do trybu STA).");
+                // 1) zatrzymaj portal AutoConnect
+                portal.end();
+                portal.stop();
+                // 2) wyłącz AP w ESP32
+                WiFi.enableAP(false);
+                // 3) upewnij się, że tryb to STA
+                WiFi.mode(WIFI_STA);
+                // 4) zatrzymaj miganie LED i DP
+                g_apMode = false;
+            }
             goto watchdog_sleep;
           }
         }
