@@ -128,6 +128,7 @@ uint8_t g_displayNext[4];
 
 // OTA status flag
 volatile bool g_otaActive = false;
+volatile bool g_apMode = false;
 
 // Brightness control
 Preferences prefs;
@@ -440,14 +441,33 @@ void LogicTask(void *pv) {
       } else {
         setDisplayTime(g_hour, g_minute, colon);
       }
-      // --- sygnalizacja braku WiFi: kropka w prawej cyfrze ---
-      if (g_wifiLost) {
-        // ustaw DP w czwartej cyfrze
+      // --- sygnalizacja DP: AP > WiFiLost > normal ---
+      // 1) Tryb AP → miganie 1 Hz
+      if (g_apMode) {
+        static uint32_t lastToggle = 0;
+        static bool apBlink = false;
+
+      uint32_t now = millis();
+        if (now - lastToggle >= 500) {   // 500 ms → 1 Hz
+          lastToggle = now;
+          apBlink = !apBlink;
+        }
+
+        if (apBlink) {
+          g_displayNext[3] |= SEG_DP;
+        } else {
+          g_displayNext[3] &= ~SEG_DP;
+        }
+      }
+      // 2) Brak WiFi (ale NIE AP) → DP świeci stale
+      else if (g_wifiLost) {
         g_displayNext[3] |= SEG_DP;
-        commitDisplayBuffer();
+      }
+      // 3) Normalne WiFi → DP wyłączona
+      else {
+        g_displayNext[3] &= ~SEG_DP;
       }
     }
-
     vTaskDelay(1);
   }
 }
@@ -471,18 +491,14 @@ void APIndicatorTask(void *pv) {
 
   for (;;) {
     wifi_mode_t mode = WiFi.getMode();
+    bool ap = (mode == WIFI_AP) || (mode == WIFI_AP_STA);
 
-    bool apMode = (mode == WIFI_AP) || (mode == WIFI_AP_STA);
+    g_apMode = ap;
 
-    if (apMode) {
+    if (ap) {
       // Miganie LED (GPIO2)
       ledState = !ledState;
       digitalWrite(PIN_LED, ledState ? HIGH : LOW);
-
-      // Miganie DP na czwartej cyfrze
-      g_displayNext[3] ^= SEG_DP;   // toggle DP
-      commitDisplayBuffer();
-
       vTaskDelay(pdMS_TO_TICKS(250));  // 1 Hz (500ms ON, 500ms OFF)
     }
     else {
