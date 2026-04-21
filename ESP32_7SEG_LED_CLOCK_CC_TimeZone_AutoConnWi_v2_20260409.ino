@@ -468,74 +468,34 @@ void BrightnessTask(void *pv) {
   }
 }
 
-// void wifiWatchdog() {
-//   wl_status_t st = WiFi.status();
-
-//   // 1. Utrata WiFi
-//   if (st != WL_CONNECTED) {
-//     if (!g_wifiLost) {
-//       g_wifiLost = true;
-//       g_wifiLostTimestamp = millis();
-//       g_forceWifiDot = true;
-//       Serial.println("WiFi lost — starting recovery attempts");
-//     }
-
-//     // 2. Po 10 minutach wymuś przejście przez kolejne zapisane sieci
-//     if (millis() - g_wifiLostTimestamp > WIFI_RETRY_TIMEOUT) {
-//       Serial.println("WiFi still down — trying next saved network");
-//       // TWARDY RESET DRIVER-A
-//       WiFi.disconnect(true);
-//       delay(200);
-//       WiFi.mode(WIFI_OFF);
-//       delay(500);
-//       WiFi.mode(WIFI_STA);
-//       delay(500);
-//       // AutoConnect ponownie przejdzie przez listę SSID
-//       portal.begin();
-
-//       g_wifiLostTimestamp = millis();
-//     }
-
-//     vTaskDelay(pdMS_TO_TICKS(10));
-//     return;
-//   }
-
-//   // 3. Po odzyskaniu WiFi
-//   if (g_wifiLost && st == WL_CONNECTED) {
-//     g_wifiLost = false;
-//     g_forceWifiDot = false;
-//     Serial.println("WiFi restored");
-//   }
-// }
-
 void wifiWatchdog() {
-    wl_status_t st = WiFi.status();
+  wl_status_t st = WiFi.status();
 
-    // 1. Utrata WiFi
-    if (st != WL_CONNECTED) {
-      if (!g_wifiLost) {
-        g_wifiLost = true;
-        g_wifiLostTimestamp = millis();
-        g_forceWifiDot = true;
-        Serial.println("WiFi lost — starting recovery attempts");
-      }
-
-      // 2. Po 10 minutach — twardy reset sterownika WiFi
-      if (millis() - g_wifiLostTimestamp > WIFI_RETRY_TIMEOUT) {
-        Serial.println("WiFi still down — HARD WiFi driver reset");
-        hardResetWiFi();
-        g_wifiLostTimestamp = millis();
-      }
-
-      return;
+  // 1. Utrata WiFi
+  if (st != WL_CONNECTED) {
+    if (!g_wifiLost) {
+      g_wifiLost = true;
+      g_wifiLostTimestamp = millis();
+      g_forceWifiDot = true;
+      Serial.println("WiFi lost — starting recovery attempts");
     }
 
-    // 3. Po odzyskaniu WiFi
-    if (g_wifiLost && st == WL_CONNECTED) {
-      g_wifiLost = false;
-      g_forceWifiDot = false;
-      Serial.println("WiFi restored");
+    // 2. Po 10 minutach — twardy reset sterownika WiFi
+    if (millis() - g_wifiLostTimestamp > WIFI_RETRY_TIMEOUT) {
+      Serial.println("WiFi still down — HARD WiFi driver reset");
+      hardResetWiFi();
+      g_wifiLostTimestamp = millis();
     }
+
+    return;
+  }
+
+  // 3. Po odzyskaniu WiFi
+  if (g_wifiLost && st == WL_CONNECTED) {
+    g_wifiLost = false;
+    g_forceWifiDot = false;
+    Serial.println("WiFi restored");
+  }
 }
 
 void hardResetWiFi() {
