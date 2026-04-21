@@ -128,7 +128,6 @@ uint8_t g_displayNext[4];
 
 // OTA status flag
 volatile bool g_otaActive = false;
-volatile bool g_apMode = false;
 
 // Brightness control
 Preferences prefs;
@@ -408,36 +407,33 @@ void TempTask(void *pv) {
 }
 
 void LogicTask(void *pv) {
+  // Prepares display buffer only.
   static int lastSec = -1;
   bool colon;
 
   for (;;) {
-
     // czekaj na koniec show boot ID
     if (g_showBootId) {
       vTaskDelay(pdMS_TO_TICKS(50));
       continue;
     }
-
     // --- STARTUP: czekamy aż czas i temperatura będą gotowe ---
     if (!g_timeValid || !g_tempValid) {
       setDisplayDashes();
-      commitDisplayBuffer();
       vTaskDelay(pdMS_TO_TICKS(200));
-      continue;
+      continue;  // jesteśmy wewnątrz pętli -> OK
     }
-
-    // --- aktualizacja wyświetlacza tylko przy zmianie sekundy ---
+    // czekamy na zmianę sekundy
     if (g_second != lastSec) {
       lastSec = g_second;
 
-      // miganie dwukropka zsynchronizowane z czasem
+      // miganie zsynchronizowane z czasem
       colon = (g_second % 2) == 0;
 
       uint32_t now = millis();
-      uint32_t phase = now % 20000;   // 20‑sekundowy cykl
+      uint32_t phase = now % 20000; // 20‑sekundowy cykl
 
-      g_showTemp = (phase < 5000);    // 0–5 s → temperatura, 5–20 s → czas
+      g_showTemp = (phase < 5000);  // 0–5 s → temperatura, 5–20 s → czas
 
       if (g_showTemp) {
         setDisplayTemp(g_tempC);
@@ -445,41 +441,6 @@ void LogicTask(void *pv) {
         setDisplayTime(g_hour, g_minute, colon);
       }
     }
-
-    // -------------------------------------------------------------------------
-    // --- sygnalizacja DP: AP > WiFiLost > normal ---
-    // -------------------------------------------------------------------------
-
-    // 1) Tryb AP → miganie 1 Hz
-    if (g_apMode) {
-      static uint32_t lastToggle = 0;
-      static bool apBlink = false;
-
-      uint32_t nowBlink = millis();
-      if (nowBlink - lastToggle >= 500) {   // 500 ms → 1 Hz
-        lastToggle = nowBlink;
-        apBlink = !apBlink;
-      }
-
-      if (apBlink) {
-        g_displayNext[3] |= SEG_DP;
-      } else {
-        g_displayNext[3] &= ~SEG_DP;
-      }
-    }
-
-    // 2) Brak WiFi (ale NIE AP) → DP świeci stale
-    else if (g_wifiLost) {
-      g_displayNext[3] |= SEG_DP;
-    }
-
-    // 3) Normalne WiFi → DP wyłączona
-    else {
-      g_displayNext[3] &= ~SEG_DP;
-    }
-
-    // --- wyślij bufor na wyświetlacz ---
-    commitDisplayBuffer();
 
     vTaskDelay(1);
   }
@@ -496,156 +457,6 @@ void BrightnessTask(void *pv) {
     vTaskDelay(pdMS_TO_TICKS(200));
   }
 }
-// -----------------------------------------------------------------------------
-// AP Indicator Task — miganie DP i/lub LED w trybie AP
-// -----------------------------------------------------------------------------
-void APIndicatorTask(void *pv) {
-  bool ledState = false;
-
-  for (;;) {
-    wifi_mode_t mode = WiFi.getMode();
-    bool ap = (mode == WIFI_AP) || (mode == WIFI_AP_STA);
-
-    g_apMode = ap;
-
-    if (ap) {
-      // Miganie LED (GPIO2)
-      ledState = !ledState;
-      digitalWrite(PIN_LED, ledState ? HIGH : LOW);
-      vTaskDelay(pdMS_TO_TICKS(250));  // 1 Hz (500ms ON, 500ms OFF)
-    }
-    else {
-      // Tryb STA — LED OFF, DP kontrolowany przez LogicTask/watchdog
-      digitalWrite(PIN_LED, LOW);
-      vTaskDelay(pdMS_TO_TICKS(1000));
-    }
-  }
-}
-// -----------------------------------------------------------------------------
-// WiFi Watchdog Task — automatyczne odzyskiwanie połączenia + fallback
-// -----------------------------------------------------------------------------
-void WiFiWatchdogTask(void *pv) {
-  AutoConnectCredential ac;
-  station_config_t cfg;
-
-  for (;;) {
-    if (WiFi.status() != WL_CONNECTED) {
-
-      if (!g_wifiLost) {
-        Serial.println("[WiFi] Utracono połączenie.");
-      }
-      g_wifiLost = true;
-
-      // --- 3 szybkie próby reconnect() ---
-      for (int i = 1; i <= 3; i++) {
-        Serial.printf("[WiFi] reconnect() próba %d/3\n", i);
-        WiFi.reconnect();
-        vTaskDelay(pdMS_TO_TICKS(3000));
-
-        if (WiFi.status() == WL_CONNECTED) {
-          Serial.println("[WiFi] Połączenie odzyskane (reconnect).");
-          g_wifiLost = false;
-          // --- WYŁĄCZ AP jeśli nadal działa ---
-          wifi_mode_t mode = WiFi.getMode();
-          if (mode == WIFI_AP_STA || mode == WIFI_AP) {
-              Serial.println("[WiFi] Wyłączam AP (powrót do trybu STA).");
-              // 1) zatrzymaj portal AutoConnect
-              portal.end();
-              // 2) wyłącz AP w ESP32
-              WiFi.enableAP(false);
-              // 3) upewnij się, że tryb to STA
-              WiFi.mode(WIFI_STA);
-              // 4) uruchom portal ponownie, ale już bez AP
-              portal.begin();
-              // 5) zatrzymaj miganie LED i DP
-              g_apMode = false;
-          }
-          goto watchdog_sleep;
-        }
-      }
-
-      // --- pełne rozłączenie ---
-      Serial.println("[WiFi] reconnect() nieudany. Wykonuję disconnect(true).");
-      WiFi.disconnect(true);
-      vTaskDelay(pdMS_TO_TICKS(500));
-
-      // --- próba połączenia z ostatnią siecią ---
-      Serial.println("[WiFi] Próba ponownego połączenia z ostatnią siecią...");
-      WiFi.begin();
-      vTaskDelay(pdMS_TO_TICKS(5000));
-
-      if (WiFi.status() == WL_CONNECTED) {
-        Serial.println("[WiFi] Połączono ponownie z ostatnią siecią.");
-        g_wifiLost = false;
-        // --- WYŁĄCZ AP jeśli nadal działa ---
-        wifi_mode_t mode = WiFi.getMode();
-        if (mode == WIFI_AP_STA || mode == WIFI_AP) {
-            Serial.println("[WiFi] Wyłączam AP (powrót do trybu STA).");
-            // 1) zatrzymaj portal AutoConnect
-            portal.end();
-            // 2) wyłącz AP w ESP32
-            WiFi.enableAP(false);
-            // 3) upewnij się, że tryb to STA
-            WiFi.mode(WIFI_STA);
-            // 4) uruchom portal ponownie, ale już bez AP
-            portal.begin();
-            // 4) zatrzymaj miganie LED i DP
-            g_apMode = false;
-        }
-        goto watchdog_sleep;
-      }
-
-      // --- fallback: zapisane sieci AutoConnect ---
-      Serial.println("[WiFi] Główna sieć niedostępna. Sprawdzam zapisane sieci AutoConnect...");
-
-      int count = ac.entries();
-      Serial.printf("[WiFi] Liczba zapisanych sieci: %d\n", count);
-
-      for (int i = 0; i < count; i++) {
-        memset(&cfg, 0, sizeof(cfg));
-
-        if (ac.load(i, &cfg)) {
-          Serial.printf("[WiFi] Próba połączenia z: %s\n", cfg.ssid);
-
-          WiFi.begin((char*)cfg.ssid, (char*)cfg.password);
-          vTaskDelay(pdMS_TO_TICKS(6000));
-
-          if (WiFi.status() == WL_CONNECTED) {
-            Serial.printf("[WiFi] Połączono z %s\n", cfg.ssid);
-            g_wifiLost = false;
-             // --- WYŁĄCZ AP jeśli nadal działa ---
-            wifi_mode_t mode = WiFi.getMode();
-            if (mode == WIFI_AP_STA || mode == WIFI_AP) {
-                Serial.println("[WiFi] Wyłączam AP (powrót do trybu STA).");
-                // 1) zatrzymaj portal AutoConnect
-                portal.end();
-                // 2) wyłącz AP w ESP32
-                WiFi.enableAP(false);
-                // 3) upewnij się, że tryb to STA
-                WiFi.mode(WIFI_STA);
-                // 4) uruchom portal ponownie, ale już bez AP
-                portal.begin();
-                // 4) zatrzymaj miganie LED i DP
-                g_apMode = false;
-            }
-            goto watchdog_sleep;
-          }
-        }
-      }
-
-      Serial.println("[WiFi] Żadna z zapisanych sieci nie działa. Kolejna próba za 5 sekund.");
-    }
-    else {
-      if (g_wifiLost) {
-        Serial.println("[WiFi] Połączenie OK.");
-      }
-      g_wifiLost = false;
-    }
-
-watchdog_sleep:
-    vTaskDelay(pdMS_TO_TICKS(5000));
-  }
-}
 
 void WiFiTask(void *pv) {
   uint8_t mac[6];
@@ -660,7 +471,7 @@ void WiFiTask(void *pv) {
   showBootId4();
 
   portalConfig.autoReconnect = true;
-  portalConfig.retainPortal = false;
+  portalConfig.retainPortal = true;
   portalConfig.apid = String("ESP32-Clock-") + id;
   portalConfig.psk = "Al@m@kot@";
   portalConfig.hostName = g_hostName.c_str();
@@ -1109,8 +920,7 @@ void setup() {
   xTaskCreatePinnedToCore(LogicTask, "Logic", 4096, nullptr, 1, nullptr, 1);
   xTaskCreatePinnedToCore(BrightnessTask, "Brightness", 2048, nullptr, 1, nullptr, 1);
   xTaskCreatePinnedToCore(WiFiTask, "WiFi", 8192, nullptr, 1, nullptr, 1);
-  xTaskCreatePinnedToCore(WiFiWatchdogTask, "WiFiWatchdog", 4096, nullptr, 1, nullptr, 1);
-  xTaskCreatePinnedToCore(APIndicatorTask, "APIndicator", 2048, nullptr, 1, nullptr, 1);
+
   // loop() intentionally unused
 }
 
