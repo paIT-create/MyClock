@@ -483,12 +483,13 @@ void wifiWatchdog() {
     // 2. Po 10 minutach wymuś przejście przez kolejne zapisane sieci
     if (millis() - g_wifiLostTimestamp > WIFI_RETRY_TIMEOUT) {
       Serial.println("WiFi still down — trying next saved network");
-
+      // TWARDY RESET DRIVER-A
       WiFi.disconnect(true);
       delay(200);
+      WiFi.mode(WIFI_OFF);
+      delay(500);
       WiFi.mode(WIFI_STA);
-      delay(200);
-
+      delay(500);
       // AutoConnect ponownie przejdzie przez listę SSID
       portal.begin();
 
