@@ -104,10 +104,10 @@ volatile uint8_t g_displaySeg[4] = { 0, 0, 0, 0 };  // raw segment bytes (incl D
 // czas świecenia jednej cyfry (µs)
 static const uint16_t DIGIT_ON_US = 350;
 // czas całej ramki (µs) → 500 Hz przy 2000 µs
-static const uint16_t FRAME_US    = 2000;
+static const uint16_t FRAME_US = 2000;
 
 // --- sprzętowy timer do multipleksowania ---
-hw_timer_t* displayTimer = nullptr;
+hw_timer_t *displayTimer = nullptr;
 portMUX_TYPE timerMux = portMUX_INITIALIZER_UNLOCKED;
 volatile uint8_t currentDigit = 0;
 
@@ -124,7 +124,7 @@ volatile bool g_tempValid = false;
 // WiFi watchdog flag
 volatile bool g_wifiLost = false;
 unsigned long g_wifiLostTimestamp = 0;
-const unsigned long WIFI_RETRY_TIMEOUT = 10UL * 60UL * 1000UL; // 10 minut
+const unsigned long WIFI_RETRY_TIMEOUT = 10UL * 60UL * 1000UL;  // 10 minut
 // Wymuszenie kropki przy czwartej cyfrze
 volatile bool g_forceWifiDot = false;
 
@@ -199,16 +199,16 @@ void IRAM_ATTR onDisplayTimer() {
     digitStart = now;
 
     if (g_otaActive) {
-        // podczas OTA wyświetlamy stabilne 'A' na pierwszej cyfrze
-        allDigitsOff();
-        write595(FONT_HEX[10]);  // 'A'
-        digitOn(0);
+      // podczas OTA wyświetlamy stabilne 'A' na pierwszej cyfrze
+      allDigitsOff();
+      write595(FONT_HEX[10]);  // 'A'
+      digitOn(0);
     } else {
-        // normalne multipleksowanie
-        allDigitsOff();
-        write595(g_displaySeg[currentDigit]);
-        digitOn(currentDigit);
-        currentDigit = (currentDigit + 1) & 0x03;
+      // normalne multipleksowanie
+      allDigitsOff();
+      write595(g_displaySeg[currentDigit]);
+      digitOn(currentDigit);
+      currentDigit = (currentDigit + 1) & 0x03;
     }
   }
 
@@ -341,11 +341,11 @@ uint8_t computeAutoBrightnessFromLDR() {
   // Calibration points (ADC values)
   // DARK  → high ADC
   // BRIGHT → low ADC
-  
+
   // --- OBUDOWA WOOD ---
   const float RAW_DARK = 3900;   // adjust after measurements
   const float RAW_BRIGHT = 900;  // adjust after measurements
-  
+
   // --- OBUDOWA PLA ---
   // const float RAW_DARK = 2500;   // adjust after measurements
   // const float RAW_BRIGHT = 50;  // adjust after measurements
@@ -435,7 +435,7 @@ void LogicTask(void *pv) {
       colon = (g_second % 2) == 0;
 
       uint32_t now = millis();
-      uint32_t phase = now % 20000; // 20‑sekundowy cykl
+      uint32_t phase = now % 20000;  // 20‑sekundowy cykl
 
       g_showTemp = (phase < 5000);  // 0–5 s → temperatura, 5–20 s → czas
 
@@ -469,42 +469,42 @@ void BrightnessTask(void *pv) {
 }
 
 void wifiWatchdog() {
-    wl_status_t st = WiFi.status();
+  wl_status_t st = WiFi.status();
 
-    // 1. Utrata WiFi
-    if (st != WL_CONNECTED) {
-      if (!g_wifiLost) {
-        g_wifiLost = true;
-        g_wifiLostTimestamp = millis();
-        g_forceWifiDot = true;
-        Serial.println("WiFi lost — starting recovery attempts");
-      }
-
-      // 2. Po 10 minutach wymuś przejście przez kolejne zapisane sieci
-      if (millis() - g_wifiLostTimestamp > WIFI_RETRY_TIMEOUT) {
-        Serial.println("WiFi still down — trying next saved network");
-
-        WiFi.disconnect(true);
-        delay(200);
-        WiFi.mode(WIFI_STA);
-        delay(200);
-
-        // AutoConnect ponownie przejdzie przez listę SSID
-        portal.begin();
-
-        g_wifiLostTimestamp = millis();
-      }
-
-      vTaskDelay(pdMS_TO_TICKS(10));
-      continue;
+  // 1. Utrata WiFi
+  if (st != WL_CONNECTED) {
+    if (!g_wifiLost) {
+      g_wifiLost = true;
+      g_wifiLostTimestamp = millis();
+      g_forceWifiDot = true;
+      Serial.println("WiFi lost — starting recovery attempts");
     }
 
-    // 3. Po odzyskaniu WiFi
-    if (g_wifiLost && st == WL_CONNECTED) {
-      g_wifiLost = false;
-      g_forceWifiDot = false;
-      Serial.println("WiFi restored");
+    // 2. Po 10 minutach wymuś przejście przez kolejne zapisane sieci
+    if (millis() - g_wifiLostTimestamp > WIFI_RETRY_TIMEOUT) {
+      Serial.println("WiFi still down — trying next saved network");
+
+      WiFi.disconnect(true);
+      delay(200);
+      WiFi.mode(WIFI_STA);
+      delay(200);
+
+      // AutoConnect ponownie przejdzie przez listę SSID
+      portal.begin();
+
+      g_wifiLostTimestamp = millis();
     }
+
+    vTaskDelay(pdMS_TO_TICKS(10));
+    return;
+  }
+
+  // 3. Po odzyskaniu WiFi
+  if (g_wifiLost && st == WL_CONNECTED) {
+    g_wifiLost = false;
+    g_forceWifiDot = false;
+    Serial.println("WiFi restored");
+  }
 }
 
 void WiFiTask(void *pv) {
@@ -910,7 +910,7 @@ void setupTime() {
   // Czekamy maksymalnie 3 sekundy na prawidłowy czas
   while (millis() - start < 3000) {
     if (getLocalTime(&timeinfo)) {
-      if (timeinfo.tm_year + 1900 > 2020) {   // czas jest sensowny
+      if (timeinfo.tm_year + 1900 > 2020) {  // czas jest sensowny
         int lastSec = timeinfo.tm_sec;
 
         // Czekamy na przejście do nowej sekundy
