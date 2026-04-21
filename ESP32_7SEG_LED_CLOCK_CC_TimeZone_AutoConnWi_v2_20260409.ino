@@ -468,44 +468,101 @@ void BrightnessTask(void *pv) {
   }
 }
 
+// void wifiWatchdog() {
+//   wl_status_t st = WiFi.status();
+
+//   // 1. Utrata WiFi
+//   if (st != WL_CONNECTED) {
+//     if (!g_wifiLost) {
+//       g_wifiLost = true;
+//       g_wifiLostTimestamp = millis();
+//       g_forceWifiDot = true;
+//       Serial.println("WiFi lost — starting recovery attempts");
+//     }
+
+//     // 2. Po 10 minutach wymuś przejście przez kolejne zapisane sieci
+//     if (millis() - g_wifiLostTimestamp > WIFI_RETRY_TIMEOUT) {
+//       Serial.println("WiFi still down — trying next saved network");
+//       // TWARDY RESET DRIVER-A
+//       WiFi.disconnect(true);
+//       delay(200);
+//       WiFi.mode(WIFI_OFF);
+//       delay(500);
+//       WiFi.mode(WIFI_STA);
+//       delay(500);
+//       // AutoConnect ponownie przejdzie przez listę SSID
+//       portal.begin();
+
+//       g_wifiLostTimestamp = millis();
+//     }
+
+//     vTaskDelay(pdMS_TO_TICKS(10));
+//     return;
+//   }
+
+//   // 3. Po odzyskaniu WiFi
+//   if (g_wifiLost && st == WL_CONNECTED) {
+//     g_wifiLost = false;
+//     g_forceWifiDot = false;
+//     Serial.println("WiFi restored");
+//   }
+// }
+
 void wifiWatchdog() {
-  wl_status_t st = WiFi.status();
+    wl_status_t st = WiFi.status();
 
-  // 1. Utrata WiFi
-  if (st != WL_CONNECTED) {
-    if (!g_wifiLost) {
-      g_wifiLost = true;
-      g_wifiLostTimestamp = millis();
-      g_forceWifiDot = true;
-      Serial.println("WiFi lost — starting recovery attempts");
+    // 1. Utrata WiFi
+    if (st != WL_CONNECTED) {
+      if (!g_wifiLost) {
+        g_wifiLost = true;
+        g_wifiLostTimestamp = millis();
+        g_forceWifiDot = true;
+        Serial.println("WiFi lost — starting recovery attempts");
+      }
+
+      // 2. Po 10 minutach — twardy reset sterownika WiFi
+      if (millis() - g_wifiLostTimestamp > WIFI_RETRY_TIMEOUT) {
+        Serial.println("WiFi still down — HARD WiFi driver reset");
+        hardResetWiFi();
+        g_wifiLostTimestamp = millis();
+      }
+
+      return;
     }
 
-    // 2. Po 10 minutach wymuś przejście przez kolejne zapisane sieci
-    if (millis() - g_wifiLostTimestamp > WIFI_RETRY_TIMEOUT) {
-      Serial.println("WiFi still down — trying next saved network");
-      // TWARDY RESET DRIVER-A
-      WiFi.disconnect(true);
-      delay(200);
-      WiFi.mode(WIFI_OFF);
-      delay(500);
-      WiFi.mode(WIFI_STA);
-      delay(500);
-      // AutoConnect ponownie przejdzie przez listę SSID
-      portal.begin();
-
-      g_wifiLostTimestamp = millis();
+    // 3. Po odzyskaniu WiFi
+    if (g_wifiLost && st == WL_CONNECTED) {
+      g_wifiLost = false;
+      g_forceWifiDot = false;
+      Serial.println("WiFi restored");
     }
+}
 
-    vTaskDelay(pdMS_TO_TICKS(10));
-    return;
-  }
+void hardResetWiFi() {
+  Serial.println("=== HARD RESET WiFi stack ===");
 
-  // 3. Po odzyskaniu WiFi
-  if (g_wifiLost && st == WL_CONNECTED) {
-    g_wifiLost = false;
-    g_forceWifiDot = false;
-    Serial.println("WiFi restored");
-  }
+  // 1. Odłącz i wyłącz WiFi
+  WiFi.disconnect(true, true);
+  delay(200);
+  WiFi.mode(WIFI_OFF);
+  delay(500);
+
+  // 2. Zatrzymaj i zdeinicjalizuj sterownik WiFi
+  esp_wifi_stop();
+  esp_wifi_deinit();
+  delay(300);
+
+  // 3. Ponowna inicjalizacja sterownika
+  wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+  esp_wifi_init(&cfg);
+  esp_wifi_set_mode(WIFI_MODE_STA);
+  esp_wifi_start();
+  delay(500);
+
+  // 4. Restart AutoConnect
+  portal.begin();
+
+  Serial.println("=== WiFi stack restarted ===");
 }
 
 void WiFiTask(void *pv) {
