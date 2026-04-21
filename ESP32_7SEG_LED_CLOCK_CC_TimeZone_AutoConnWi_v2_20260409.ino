@@ -561,6 +561,7 @@ void hardResetWiFi() {
 
   // 4. Restart AutoConnect
   portal.begin();
+  delay(500);
 
   Serial.println("=== WiFi stack restarted ===");
 }
