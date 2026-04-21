@@ -123,6 +123,8 @@ volatile bool g_timeValid = false;
 volatile bool g_tempValid = false;
 // WiFi watchdog flag
 volatile bool g_wifiLost = false;
+unsigned long g_wifiLostTimestamp = 0;
+const unsigned long WIFI_RETRY_TIMEOUT = 10UL * 60UL * 1000UL; // 10 minut
 
 uint8_t g_displayNext[4];
 
@@ -458,6 +460,51 @@ void BrightnessTask(void *pv) {
   }
 }
 
+void wifiWatchdog() {
+  wl_status_t st = WiFi.status();
+
+  // 1. Wykrycie utraty WiFi
+  if (st != WL_CONNECTED) {
+    if (!g_wifiLost) {
+      g_wifiLost = true;
+      g_wifiLostTimestamp = millis();
+
+      // zapal kropkę (DP) na czwartej cyfrze
+      g_displayNext[3] |= SEG_DP;
+      commitDisplayBuffer();
+
+      Serial.println("WiFi lost — starting recovery attempts");
+    }
+
+    // 2. Po 10 minutach wymuś przejście przez kolejne zapisane sieci
+    if (millis() - g_wifiLostTimestamp > WIFI_RETRY_TIMEOUT) {
+      Serial.println("WiFi still down — trying next saved network");
+
+      WiFi.disconnect(true);   // usuń aktualny stan
+      delay(200);
+      WiFi.mode(WIFI_STA);     // tryb klienta
+      delay(200);
+
+      // AutoConnect ponownie przejdzie przez listę zapisanych SSID
+      portal.begin();
+
+      g_wifiLostTimestamp = millis();  // restart licznika
+    }
+
+    return;  // nadal brak WiFi
+  }
+
+  // 3. Po odzyskaniu połączenia
+  if (g_wifiLost && st == WL_CONNECTED) {
+    g_wifiLost = false;
+    // zgaś kropkę
+    g_displayNext[3] &= ~SEG_DP;
+    commitDisplayBuffer();
+
+    Serial.println("WiFi restored");
+  }
+}
+
 void WiFiTask(void *pv) {
   uint8_t mac[6];
   esp_read_mac(mac, ESP_MAC_WIFI_STA);
@@ -780,6 +827,7 @@ window.onload = loadStatus;
 
   for (;;) {
     portal.handleClient();
+    wifiWatchdog();
     vTaskDelay(pdMS_TO_TICKS(10));
   }
 }
