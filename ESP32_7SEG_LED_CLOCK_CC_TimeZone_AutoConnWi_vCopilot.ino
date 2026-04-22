@@ -115,10 +115,11 @@ volatile bool g_wifiLost = false;
 volatile bool g_forceWifiDot = false;
 unsigned long g_wifiLostTimestamp = 0;
 unsigned long g_wifiLastRetry = 0;
+unsigned long g_wifiLastRescan = 0;
 
 const unsigned long WIFI_RETRY_INTERVAL = 30UL * 1000UL;        // 30 s
 const unsigned long WIFI_RETRY_TIMEOUT = 10UL * 60UL * 1000UL;  // 10 min
-const unsigned long WIFI_RESCAN_TIMEOUT = 10UL * 60UL * 1000UL;  // 15 min
+const unsigned long WIFI_RESCAN_TIMEOUT = 15UL * 60UL * 1000UL;  // 15 min
 
 // OTA status
 volatile bool g_otaActive = false;
@@ -486,17 +487,17 @@ void forceReconnectAllNetworks() {
 
 void wifiWatchdog() {
   wl_status_t st = WiFi.status();
+	unsigned long now = millis();
 
   if (st != WL_CONNECTED) {
     if (!g_wifiLost) {
       g_wifiLost = true;
-      g_wifiLostTimestamp = millis();
-      g_wifiLastRetry = millis();
+      g_wifiLostTimestamp = now;
+      g_wifiLastRetry = now;
+			g_wifiLastRescan = now;
       g_forceWifiDot = true;
       Serial.println("WiFi lost — starting recovery attempts");
     }
-
-    unsigned long now = millis();
 
     if (now - g_wifiLastRetry > WIFI_RETRY_INTERVAL) {
       g_wifiLastRetry = now;
@@ -509,7 +510,6 @@ void wifiWatchdog() {
     if (now - g_wifiLostTimestamp > WIFI_RETRY_TIMEOUT) {
       Serial.println("WiFi still down — SOFT WiFi stack reset");
       hardResetWiFi();
-      g_wifiLostTimestamp = now;
       g_wifiLastRetry = now;
     }
 
@@ -517,7 +517,7 @@ void wifiWatchdog() {
     if (now - g_wifiLostTimestamp > WIFI_RESCAN_TIMEOUT) {
       Serial.println("WiFi still down — forcing full WiFiMulti rescan");
       forceReconnectAllNetworks();
-      g_wifiLostTimestamp = now;
+      g_wifiLastRescan = now;
     }
 
     return;
