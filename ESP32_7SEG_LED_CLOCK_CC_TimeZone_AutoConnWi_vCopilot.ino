@@ -116,10 +116,12 @@ volatile bool g_forceWifiDot = false;
 unsigned long g_wifiLostTimestamp = 0;
 unsigned long g_wifiLastRetry = 0;
 unsigned long g_wifiLastRescan = 0;
+bool g_rescanInProgress = false;
+unsigned long g_rescanFinishedAt = 0;
 
 const unsigned long WIFI_RETRY_INTERVAL = 30UL * 1000UL;        // 30 s
-const unsigned long WIFI_RETRY_TIMEOUT = 10UL * 60UL * 1000UL;  // 10 min
-const unsigned long WIFI_RESCAN_TIMEOUT = 15UL * 60UL * 1000UL;  // 15 min
+const unsigned long WIFI_RETRY_TIMEOUT = 5UL * 60UL * 1000UL;  // 10 min
+const unsigned long WIFI_RESCAN_TIMEOUT = 7UL * 60UL * 1000UL;  // 15 min
 
 // OTA status
 volatile bool g_otaActive = false;
@@ -510,20 +512,22 @@ void wifiWatchdog() {
       delay(100);
       WiFi.begin();
     }
-
     // --- Po 10 minutach: soft reset sterownika WiFi ---
-    if (now - g_wifiLostTimestamp > WIFI_RETRY_TIMEOUT) {
-      Serial.println("WiFi still down — SOFT WiFi stack reset");
-      hardResetWiFi();
-      g_wifiLastRetry = now;
-      // UWAGA: NIE resetujemy g_wifiLostTimestamp
+    if (!g_rescanInProgress && (now - g_rescanFinishedAt > 30000)) {
+        if (now - g_wifiLostTimestamp > WIFI_RETRY_TIMEOUT) {
+            Serial.println("WiFi still down — SOFT WiFi stack reset");
+            hardResetWiFi();
+            g_wifiLastRetry = now;
+        }
     }
-
     // --- Po 15 minutach: pełny rescan wszystkich zapisanych sieci ---
     if (now - g_wifiLastRescan > WIFI_RESCAN_TIMEOUT) {
-      Serial.println("WiFi still down — forcing full WiFiMulti rescan");
-      forceReconnectAllNetworks();
-      g_wifiLastRescan = now;
+        Serial.println("WiFi still down — forcing full WiFiMulti rescan");
+        g_rescanInProgress = true;
+        forceReconnectAllNetworks();
+        g_rescanInProgress = false;
+        g_rescanFinishedAt = now;
+        g_wifiLastRescan = now;
     }
 
     return;
