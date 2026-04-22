@@ -120,8 +120,8 @@ bool g_rescanInProgress = false;
 unsigned long g_rescanFinishedAt = 0;
 
 const unsigned long WIFI_RETRY_INTERVAL = 30UL * 1000UL;        // 30 s
-const unsigned long WIFI_RETRY_TIMEOUT = 5UL * 60UL * 1000UL;  // 10 min
-const unsigned long WIFI_RESCAN_TIMEOUT = 7UL * 60UL * 1000UL;  // 15 min
+const unsigned long WIFI_RETRY_TIMEOUT = 2UL * 60UL * 1000UL;  // 10 min
+const unsigned long WIFI_RESCAN_TIMEOUT = 3UL * 60UL * 1000UL;  // 15 min
 
 // OTA status
 volatile bool g_otaActive = false;
@@ -494,40 +494,42 @@ void wifiWatchdog() {
   // --- WiFi NIE jest połączone ---
   if (st != WL_CONNECTED) {
 
-    // Pierwsze wykrycie utraty WiFi
     if (!g_wifiLost) {
       g_wifiLost = true;
-      g_wifiLostTimestamp = now;   // ustawiamy TYLKO raz
       g_wifiLastRetry = now;
       g_wifiLastRescan = now;
       g_forceWifiDot = true;
       Serial.println("WiFi lost — starting recovery attempts");
     }
 
-    // --- Co 30 sekund: miękki reconnect ---
+    // --- Co 30 sekund: delikatny reconnect ---
     if (now - g_wifiLastRetry > WIFI_RETRY_INTERVAL) {
       g_wifiLastRetry = now;
       Serial.println("WiFi still down — soft reconnect attempt");
-      WiFi.disconnect(false, false);
+      WiFi.disconnect(false, false);   // NIE resetuje radia
       delay(100);
-      WiFi.begin();
+      WiFi.begin();                    // używa ostatniej znanej sieci z NVS
     }
-    // --- Po 10 minutach: soft reset sterownika WiFi ---
-    if (!g_rescanInProgress && (now - g_rescanFinishedAt > 30000)) {
-        if (now - g_wifiLostTimestamp > WIFI_RETRY_TIMEOUT) {
-            Serial.println("WiFi still down — SOFT WiFi stack reset");
-            hardResetWiFi();
-            g_wifiLastRetry = now;
-        }
-    }
-    // --- Po 15 minutach: pełny rescan wszystkich zapisanych sieci ---
+
+    // --- Co 15 minut: delikatny skan ---
     if (now - g_wifiLastRescan > WIFI_RESCAN_TIMEOUT) {
-        Serial.println("WiFi still down — forcing full WiFiMulti rescan");
-        g_rescanInProgress = true;
-        forceReconnectAllNetworks();
-        g_rescanInProgress = false;
-        g_rescanFinishedAt = now;
-        g_wifiLastRescan = now;
+      g_wifiLastRescan = now;
+      Serial.println("WiFi still down — scanning for networks");
+
+      int n = WiFi.scanNetworks(false);   // BEZ resetów, BEZ trybu async
+      Serial.printf("Scan result: %d networks found\n", n);
+
+      // Jeśli nasza ostatnia sieć jest widoczna — próbujemy połączenia
+      if (n > 0) {
+        String last = WiFi.SSID();        // ostatnia znana sieć z NVS
+        for (int i = 0; i < n; i++) {
+          if (WiFi.SSID(i) == last) {
+            Serial.println("Last known SSID found — trying to reconnect");
+            WiFi.begin();                 // bez parametrów — używa NVS
+            break;
+          }
+        }
+      }
     }
 
     return;
