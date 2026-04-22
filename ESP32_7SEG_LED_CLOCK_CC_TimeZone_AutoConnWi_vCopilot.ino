@@ -131,7 +131,7 @@ int wifiScanCount = 0;
 int wifiCredIndex = 0;
 
 const unsigned long WIFI_RETRY_INTERVAL = 30UL * 1000UL;        // 30 s
-const unsigned long WIFI_RETRY_TIMEOUT = 2UL * 60UL * 1000UL;  // 10 min
+const unsigned long WIFI_RETRY_TIMEOUT = 2UL * 60UL * 1000UL;   // 10 min
 const unsigned long WIFI_RESCAN_TIMEOUT = 3UL * 60UL * 1000UL;  // 15 min
 
 // OTA status
@@ -530,26 +530,25 @@ void wifiWatchdog() {
       g_wifiLastRetry = now;
       Serial.println("Reconnect attempt");
       WiFi.disconnect(false, false);
-      WiFi.begin();   // ostatnia znana sieć
+      WiFi.begin();  // próba ostatniej znanej sieci
     }
 
-    // czas na skan?
     if (now - g_wifiLastRescan > WIFI_RESCAN_TIMEOUT) {
       g_wifiLastRescan = now;
       Serial.println("Starting scan...");
-      wifiScanStart = now;
-      wifiScanCount = WiFi.scanNetworks(true); // async
+      WiFi.scanDelete();
+      WiFi.scanNetworks(true);  // async
       wifiState = WIFI_SCANNING;
     }
 
     return;
   }
 
-  // --- STATE 1: SCANNING (czekamy na wynik async) ---
+  // --- STATE 1: SCANNING ---
   if (wifiState == WIFI_SCANNING) {
 
     int res = WiFi.scanComplete();
-    if (res == WIFI_SCAN_RUNNING) return; // skan trwa
+    if (res == WIFI_SCAN_RUNNING) return;
 
     if (res < 0) {
       Serial.println("Scan failed");
@@ -560,18 +559,16 @@ void wifiWatchdog() {
     wifiScanCount = res;
     Serial.printf("Scan done: %d networks\n", wifiScanCount);
 
-    // wczytujemy zapisane sieci
     wifiCredIndex = 0;
     wifiTryStart = now;
     wifiState = WIFI_TRY_CREDENTIALS;
     return;
   }
 
-  // --- STATE 2: TRY_CREDENTIALS (próbujemy zapisane sieci) ---
+  // --- STATE 2: TRY_CREDENTIALS ---
   if (wifiState == WIFI_TRY_CREDENTIALS) {
 
     AutoConnectCredential cred;
-    portal.loadCredentials(cred);
     int total = cred.entries();
 
     if (wifiCredIndex >= total) {
@@ -580,14 +577,18 @@ void wifiWatchdog() {
       return;
     }
 
-    // co 5 sekund próbujemy kolejną sieć
     if (now - wifiTryStart < 5000) return;
     wifiTryStart = now;
 
-    String ssid = cred.ssid(wifiCredIndex);
-    String pass = cred.password(wifiCredIndex);
+    station_config_t cfg;
+    if (!cred.load(wifiCredIndex, &cfg)) {
+      wifiCredIndex++;
+      return;
+    }
 
-    // sprawdzamy czy SSID jest w skanie
+    String ssid = String((char *)cfg.ssid);
+    String pass = String((char *)cfg.password);
+
     bool found = false;
     for (int i = 0; i < wifiScanCount; i++) {
       if (WiFi.SSID(i) == ssid) {
@@ -600,7 +601,6 @@ void wifiWatchdog() {
       Serial.printf("Trying stored SSID: %s\n", ssid.c_str());
       WiFi.disconnect(false, false);
       WiFi.begin(ssid.c_str(), pass.c_str());
-      // jeśli się uda — wrócimy do STATE 0
     }
 
     wifiCredIndex++;
@@ -1025,6 +1025,9 @@ void setup() {
 
   pinMode(PIN_LED, OUTPUT);
   digitalWrite(PIN_LED, LOW);
+
+  WiFi.setAutoReconnect(false);
+  WiFi.persistent(true);
 
   loadSettings();
   initDisplayHardware();
