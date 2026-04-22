@@ -526,18 +526,27 @@ void wifiWatchdog() {
   // --- STATE 0: IDLE (reconnect co 30 s) ---
   if (wifiState == WIFI_LOST_IDLE) {
 
+    // reconnect co 30 s
     if (now - g_wifiLastRetry > WIFI_RETRY_INTERVAL) {
       g_wifiLastRetry = now;
       Serial.println("Reconnect attempt");
       WiFi.disconnect(false, false);
-      WiFi.begin();  // próba ostatniej znanej sieci
+      WiFi.begin();   // próba ostatniej znanej sieci
     }
 
+    // skan co 15 min
     if (now - g_wifiLastRescan > WIFI_RESCAN_TIMEOUT) {
       g_wifiLastRescan = now;
       Serial.println("Starting scan...");
+
+      // *** KLUCZOWE: przerwanie łączenia ***
+      WiFi.mode(WIFI_OFF);
+      delay(50);
+      WiFi.mode(WIFI_STA);
+      portal.begin();   // przywraca /config, /status, /ac
+
       WiFi.scanDelete();
-      WiFi.scanNetworks(true);  // async
+      WiFi.scanNetworks(true); // async
       wifiState = WIFI_SCANNING;
     }
 
@@ -586,8 +595,8 @@ void wifiWatchdog() {
       return;
     }
 
-    String ssid = String((char *)cfg.ssid);
-    String pass = String((char *)cfg.password);
+    String ssid = String((char*)cfg.ssid);
+    String pass = String((char*)cfg.password);
 
     bool found = false;
     for (int i = 0; i < wifiScanCount; i++) {
