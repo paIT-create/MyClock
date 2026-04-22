@@ -512,7 +512,7 @@ void wifiWatchdog() {
       Serial.println("WiFi restored");
 
       // przywróć pełny portal AP+STA
-      //portal.begin();
+      portal.begin();
     }
     return;
   }
