@@ -512,7 +512,7 @@ void wifiWatchdog() {
       Serial.println("WiFi restored");
 
       // przywróć pełny portal AP+STA
-      portal.begin();
+      //portal.begin();
     }
     return;
   }
@@ -699,8 +699,6 @@ void WiFiTask(void *pv) {
   portalConfig.hostName = g_hostName.c_str();
   portalConfig.menuItems |= AC_MENUITEM_DELETESSID;
   portal.config(portalConfig);
-
-  portal.begin(WIFI_AP);   // tylko AP, STA NIE startuje automatycznie
 
   ota.onStart([]() {
     g_otaActive = true;
@@ -1041,6 +1039,8 @@ void setup() {
 
   WiFi.setAutoReconnect(false);
   WiFi.persistent(true);
+
+  portal.begin();
 
   loadSettings();
   initDisplayHardware();
