@@ -116,8 +116,19 @@ volatile bool g_forceWifiDot = false;
 unsigned long g_wifiLostTimestamp = 0;
 unsigned long g_wifiLastRetry = 0;
 unsigned long g_wifiLastRescan = 0;
-bool g_rescanInProgress = false;
-unsigned long g_rescanFinishedAt = 0;
+
+enum WifiState {
+  WIFI_LOST_IDLE,
+  WIFI_SCANNING,
+  WIFI_TRY_CREDENTIALS
+};
+
+WifiState wifiState = WIFI_LOST_IDLE;
+
+unsigned long wifiScanStart = 0;
+unsigned long wifiTryStart = 0;
+int wifiScanCount = 0;
+int wifiCredIndex = 0;
 
 const unsigned long WIFI_RETRY_INTERVAL = 30UL * 1000UL;        // 30 s
 const unsigned long WIFI_RETRY_TIMEOUT = 2UL * 60UL * 1000UL;  // 10 min
@@ -488,58 +499,112 @@ void forceReconnectAllNetworks() {
 }
 
 void wifiWatchdog() {
-  wl_status_t st = WiFi.status();
   unsigned long now = millis();
+  wl_status_t st = WiFi.status();
 
-  // --- WiFi NIE jest połączone ---
-  if (st != WL_CONNECTED) {
-
-    if (!g_wifiLost) {
-      g_wifiLost = true;
-      g_wifiLastRetry = now;
-      g_wifiLastRescan = now;
-      g_forceWifiDot = true;
-      Serial.println("WiFi lost — starting recovery attempts");
+  // --- WiFi OK ---
+  if (st == WL_CONNECTED) {
+    if (g_wifiLost) {
+      g_wifiLost = false;
+      g_forceWifiDot = false;
+      wifiState = WIFI_LOST_IDLE;
+      Serial.println("WiFi restored");
     }
+    return;
+  }
 
-    // --- Co 30 sekund: delikatny reconnect ---
+  // --- WiFi LOST ---
+  if (!g_wifiLost) {
+    g_wifiLost = true;
+    g_forceWifiDot = true;
+    g_wifiLastRetry = now;
+    g_wifiLastRescan = now;
+    wifiState = WIFI_LOST_IDLE;
+    Serial.println("WiFi lost — starting recovery attempts");
+  }
+
+  // --- STATE 0: IDLE (reconnect co 30 s) ---
+  if (wifiState == WIFI_LOST_IDLE) {
+
     if (now - g_wifiLastRetry > WIFI_RETRY_INTERVAL) {
       g_wifiLastRetry = now;
-      Serial.println("WiFi still down — soft reconnect attempt");
-      WiFi.disconnect(false, false);   // NIE resetuje radia
-      delay(100);
-      WiFi.begin();                    // używa ostatniej znanej sieci z NVS
+      Serial.println("Reconnect attempt");
+      WiFi.disconnect(false, false);
+      WiFi.begin();   // ostatnia znana sieć
     }
 
-    // --- Co 15 minut: delikatny skan ---
+    // czas na skan?
     if (now - g_wifiLastRescan > WIFI_RESCAN_TIMEOUT) {
       g_wifiLastRescan = now;
-      Serial.println("WiFi still down — scanning for networks");
-
-      int n = WiFi.scanNetworks(false);   // BEZ resetów, BEZ trybu async
-      Serial.printf("Scan result: %d networks found\n", n);
-
-      // Jeśli nasza ostatnia sieć jest widoczna — próbujemy połączenia
-      if (n > 0) {
-        String last = WiFi.SSID();        // ostatnia znana sieć z NVS
-        for (int i = 0; i < n; i++) {
-          if (WiFi.SSID(i) == last) {
-            Serial.println("Last known SSID found — trying to reconnect");
-            WiFi.begin();                 // bez parametrów — używa NVS
-            break;
-          }
-        }
-      }
+      Serial.println("Starting scan...");
+      wifiScanStart = now;
+      wifiScanCount = WiFi.scanNetworks(true); // async
+      wifiState = WIFI_SCANNING;
     }
 
     return;
   }
 
-  // --- WiFi wróciło ---
-  if (g_wifiLost && st == WL_CONNECTED) {
-    g_wifiLost = false;
-    g_forceWifiDot = false;
-    Serial.println("WiFi restored");
+  // --- STATE 1: SCANNING (czekamy na wynik async) ---
+  if (wifiState == WIFI_SCANNING) {
+
+    int res = WiFi.scanComplete();
+    if (res == WIFI_SCAN_RUNNING) return; // skan trwa
+
+    if (res < 0) {
+      Serial.println("Scan failed");
+      wifiState = WIFI_LOST_IDLE;
+      return;
+    }
+
+    wifiScanCount = res;
+    Serial.printf("Scan done: %d networks\n", wifiScanCount);
+
+    // wczytujemy zapisane sieci
+    wifiCredIndex = 0;
+    wifiTryStart = now;
+    wifiState = WIFI_TRY_CREDENTIALS;
+    return;
+  }
+
+  // --- STATE 2: TRY_CREDENTIALS (próbujemy zapisane sieci) ---
+  if (wifiState == WIFI_TRY_CREDENTIALS) {
+
+    AutoConnectCredential cred;
+    portal.loadCredentials(cred);
+    int total = cred.entries();
+
+    if (wifiCredIndex >= total) {
+      Serial.println("No stored networks matched");
+      wifiState = WIFI_LOST_IDLE;
+      return;
+    }
+
+    // co 5 sekund próbujemy kolejną sieć
+    if (now - wifiTryStart < 5000) return;
+    wifiTryStart = now;
+
+    String ssid = cred.ssid(wifiCredIndex);
+    String pass = cred.password(wifiCredIndex);
+
+    // sprawdzamy czy SSID jest w skanie
+    bool found = false;
+    for (int i = 0; i < wifiScanCount; i++) {
+      if (WiFi.SSID(i) == ssid) {
+        found = true;
+        break;
+      }
+    }
+
+    if (found) {
+      Serial.printf("Trying stored SSID: %s\n", ssid.c_str());
+      WiFi.disconnect(false, false);
+      WiFi.begin(ssid.c_str(), pass.c_str());
+      // jeśli się uda — wrócimy do STATE 0
+    }
+
+    wifiCredIndex++;
+    return;
   }
 }
 // -----------------------------------------------------------------------------
