@@ -21,6 +21,7 @@
 
 // WiFi / Portal / OTA
 #include <WiFi.h>
+#include <esp_wifi.h>
 #include <WebServer.h>
 #include <AutoConnect.h>
 #include <AutoConnectOTA.h>
@@ -509,6 +510,9 @@ void wifiWatchdog() {
       g_forceWifiDot = false;
       wifiState = WIFI_LOST_IDLE;
       Serial.println("WiFi restored");
+
+      // przywróć pełny portal AP+STA
+      portal.begin();
     }
     return;
   }
@@ -523,27 +527,24 @@ void wifiWatchdog() {
     Serial.println("WiFi lost — starting recovery attempts");
   }
 
-  // --- STATE 0: IDLE (reconnect co 30 s) ---
+  // --- STATE 0: IDLE ---
   if (wifiState == WIFI_LOST_IDLE) {
 
     // reconnect co 30 s
     if (now - g_wifiLastRetry > WIFI_RETRY_INTERVAL) {
       g_wifiLastRetry = now;
       Serial.println("Reconnect attempt");
-      WiFi.disconnect(false, false);
-      WiFi.begin();   // próba ostatniej znanej sieci
+
+      esp_wifi_disconnect();   // KLUCZOWE — przerywa łączenie
+      WiFi.begin();            // próba ostatniej sieci
     }
 
-    // skan co 15 min
+    // skan co X minut
     if (now - g_wifiLastRescan > WIFI_RESCAN_TIMEOUT) {
       g_wifiLastRescan = now;
       Serial.println("Starting scan...");
 
-      // *** KLUCZOWE: przerwanie łączenia ***
-      WiFi.mode(WIFI_OFF);
-      delay(50);
-      WiFi.mode(WIFI_STA);
-      portal.begin();   // przywraca /config, /status, /ac
+      esp_wifi_disconnect();   // KLUCZOWE — odblokowuje sterownik
 
       WiFi.scanDelete();
       WiFi.scanNetworks(true); // async
@@ -608,7 +609,7 @@ void wifiWatchdog() {
 
     if (found) {
       Serial.printf("Trying stored SSID: %s\n", ssid.c_str());
-      WiFi.disconnect(false, false);
+      esp_wifi_disconnect();   // KLUCZOWE — przerywa poprzednie łączenie
       WiFi.begin(ssid.c_str(), pass.c_str());
     }
 
@@ -690,13 +691,16 @@ void WiFiTask(void *pv) {
 
   showBootId4();
 
-  portalConfig.autoReconnect = true;
+  portalConfig.autoReconnect = false;
   portalConfig.retainPortal = true;
+  portalConfig.autoRise = true;
   portalConfig.apid = String("ESP32-Clock-") + id;
   portalConfig.psk = "Al@m@kot@";
   portalConfig.hostName = g_hostName.c_str();
   portalConfig.menuItems |= AC_MENUITEM_DELETESSID;
   portal.config(portalConfig);
+
+  portal.begin(WIFI_AP);   // tylko AP, STA NIE startuje automatycznie
 
   ota.onStart([]() {
     g_otaActive = true;
