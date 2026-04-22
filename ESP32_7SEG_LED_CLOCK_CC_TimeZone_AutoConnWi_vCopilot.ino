@@ -116,8 +116,9 @@ volatile bool g_forceWifiDot = false;
 unsigned long g_wifiLostTimestamp = 0;
 unsigned long g_wifiLastRetry = 0;
 
-const unsigned long WIFI_RETRY_TIMEOUT = 10UL * 60UL * 1000UL;  // 10 min
 const unsigned long WIFI_RETRY_INTERVAL = 30UL * 1000UL;        // 30 s
+const unsigned long WIFI_RETRY_TIMEOUT = 10UL * 60UL * 1000UL;  // 10 min
+const unsigned long WIFI_RESCAN_TIMEOUT = 10UL * 60UL * 1000UL;  // 15 min
 
 // OTA status
 volatile bool g_otaActive = false;
@@ -466,6 +467,23 @@ void hardResetWiFi() {
   Serial.println("=== WiFi stack restarted ===");
 }
 
+void forceReconnectAllNetworks() {
+  Serial.println("=== WiFiMulti full rescan ===");
+
+  WiFi.disconnect(true, true);
+  delay(200);
+
+  WiFi.mode(WIFI_STA);
+  delay(200);
+
+  // Wymusza skanowanie wszystkich zapisanych sieci AutoConnect
+  portal.handleClient();  // ważne: odświeża listę SSID
+  WiFi.begin();           // próbuje ostatniej znanej
+  delay(500);
+
+  Serial.println("=== WiFiMulti rescan done ===");
+}
+
 void wifiWatchdog() {
   wl_status_t st = WiFi.status();
 
@@ -493,6 +511,13 @@ void wifiWatchdog() {
       hardResetWiFi();
       g_wifiLostTimestamp = now;
       g_wifiLastRetry = now;
+    }
+
+    // Po 15 minutach — wymuś pełny rescan wszystkich zapisanych sieci
+    if (now - g_wifiLostTimestamp > WIFI_RESCAN_TIMEOUT) {
+      Serial.println("WiFi still down — forcing full WiFiMulti rescan");
+      forceReconnectAllNetworks();
+      g_wifiLostTimestamp = now;
     }
 
     return;
