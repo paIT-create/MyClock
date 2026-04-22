@@ -487,18 +487,22 @@ void forceReconnectAllNetworks() {
 
 void wifiWatchdog() {
   wl_status_t st = WiFi.status();
-	unsigned long now = millis();
+  unsigned long now = millis();
 
+  // --- WiFi NIE jest połączone ---
   if (st != WL_CONNECTED) {
+
+    // Pierwsze wykrycie utraty WiFi
     if (!g_wifiLost) {
       g_wifiLost = true;
-      g_wifiLostTimestamp = now;
+      g_wifiLostTimestamp = now;   // ustawiamy TYLKO raz
       g_wifiLastRetry = now;
-			g_wifiLastRescan = now;
+      g_wifiLastRescan = now;
       g_forceWifiDot = true;
       Serial.println("WiFi lost — starting recovery attempts");
     }
 
+    // --- Co 30 sekund: miękki reconnect ---
     if (now - g_wifiLastRetry > WIFI_RETRY_INTERVAL) {
       g_wifiLastRetry = now;
       Serial.println("WiFi still down — soft reconnect attempt");
@@ -507,14 +511,16 @@ void wifiWatchdog() {
       WiFi.begin();
     }
 
+    // --- Po 10 minutach: soft reset sterownika WiFi ---
     if (now - g_wifiLostTimestamp > WIFI_RETRY_TIMEOUT) {
       Serial.println("WiFi still down — SOFT WiFi stack reset");
       hardResetWiFi();
       g_wifiLastRetry = now;
+      // UWAGA: NIE resetujemy g_wifiLostTimestamp
     }
 
-    // Po 15 minutach — wymuś pełny rescan wszystkich zapisanych sieci
-    if (now - g_wifiLostTimestamp > WIFI_RESCAN_TIMEOUT) {
+    // --- Po 15 minutach: pełny rescan wszystkich zapisanych sieci ---
+    if (now - g_wifiLastRescan > WIFI_RESCAN_TIMEOUT) {
       Serial.println("WiFi still down — forcing full WiFiMulti rescan");
       forceReconnectAllNetworks();
       g_wifiLastRescan = now;
@@ -523,13 +529,13 @@ void wifiWatchdog() {
     return;
   }
 
+  // --- WiFi wróciło ---
   if (g_wifiLost && st == WL_CONNECTED) {
     g_wifiLost = false;
     g_forceWifiDot = false;
     Serial.println("WiFi restored");
   }
 }
-
 // -----------------------------------------------------------------------------
 // Settings (Preferences)
 // -----------------------------------------------------------------------------
