@@ -125,6 +125,8 @@ volatile bool g_tempValid = false;
 volatile bool g_wifiLost = false;
 unsigned long g_wifiLostTimestamp = 0;
 const unsigned long WIFI_RETRY_TIMEOUT = 10UL * 60UL * 1000UL;  // 10 minut
+const unsigned long WIFI_RETRY_INTERVAL = 30UL * 1000UL;        // 30 s
+unsigned long g_wifiLastRetry = 0;
 // Wymuszenie kropki przy czwartej cyfrze
 volatile bool g_forceWifiDot = false;
 
@@ -196,7 +198,8 @@ void IRAM_ATTR onDisplayTimer() {
 
   // przełącz cyfrę po upływie DIGIT_ON_US
   if (now - digitStart >= DIGIT_ON_US) {
-    digitStart = now;
+    // zamiast digitStart = now;
+    digitStart += DIGIT_ON_US;
 
     if (g_otaActive) {
       // podczas OTA wyświetlamy stabilne 'A' na pierwszej cyfrze
@@ -456,14 +459,35 @@ void LogicTask(void *pv) {
   }
 }
 
+// void BrightnessTask(void *pv) {
+//   for (;;) {
+//     if (g_autoBrightness) {
+//       g_brightness = computeAutoBrightnessFromLDR();
+//       applyBrightness(g_brightness);
+//     } else {
+//       applyBrightness(g_brightness);
+//     }
+//     vTaskDelay(pdMS_TO_TICKS(200));
+//   }
+// }
+
 void BrightnessTask(void *pv) {
+  uint8_t lastApplied = g_brightness;
+
   for (;;) {
+    uint8_t target = g_brightness;
+
     if (g_autoBrightness) {
-      g_brightness = computeAutoBrightnessFromLDR();
-      applyBrightness(g_brightness);
-    } else {
-      applyBrightness(g_brightness);
+      target = computeAutoBrightnessFromLDR();
+      g_brightness = target;
     }
+
+    // Zastosuj tylko, jeśli zmiana >= 2
+    if (abs((int)target - (int)lastApplied) >= 2) {
+      applyBrightness(target);
+      lastApplied = target;
+    }
+
     vTaskDelay(pdMS_TO_TICKS(200));
   }
 }
@@ -476,21 +500,34 @@ void wifiWatchdog() {
     if (!g_wifiLost) {
       g_wifiLost = true;
       g_wifiLostTimestamp = millis();
+      g_wifiLastRetry = millis();
       g_forceWifiDot = true;
       Serial.println("WiFi lost — starting recovery attempts");
     }
 
-    // 2. Po 10 minutach — twardy reset sterownika WiFi
-    if (millis() - g_wifiLostTimestamp > WIFI_RETRY_TIMEOUT) {
-      Serial.println("WiFi still down — HARD WiFi driver reset");
+    unsigned long now = millis();
+
+    // 2. Co 30 s próbujemy miękki reconnect
+    if (now - g_wifiLastRetry > WIFI_RETRY_INTERVAL) {
+      g_wifiLastRetry = now;
+      Serial.println("WiFi still down — soft reconnect attempt");
+      WiFi.disconnect(false, false);
+      delay(100);
+      WiFi.begin();
+    }
+
+    // 3. Po 10 minutach — soft reset sterownika WiFi
+    if (now - g_wifiLostTimestamp > WIFI_RETRY_TIMEOUT) {
+      Serial.println("WiFi still down — SOFT WiFi stack reset");
       hardResetWiFi();
-      g_wifiLostTimestamp = millis();
+      g_wifiLostTimestamp = now;
+      g_wifiLastRetry = now;
     }
 
     return;
   }
 
-  // 3. Po odzyskaniu WiFi
+  // 4. Po odzyskaniu WiFi
   if (g_wifiLost && st == WL_CONNECTED) {
     g_wifiLost = false;
     g_forceWifiDot = false;
@@ -499,31 +536,24 @@ void wifiWatchdog() {
 }
 
 void hardResetWiFi() {
-  Serial.println("=== HARD RESET WiFi stack ===");
+  Serial.println("=== SOFT RESET WiFi stack ===");
 
-  // 1. Odłącz i wyłącz WiFi
+  // 1. Rozłącz i wyłącz
   WiFi.disconnect(true, true);
   delay(200);
-  WiFi.mode(WIFI_OFF);
-  delay(500);
 
-  // 2. Zatrzymaj i zdeinicjalizuj sterownik WiFi
-  esp_wifi_stop();
-  esp_wifi_deinit();
+  WiFi.mode(WIFI_OFF);
   delay(300);
 
-  // 3. Ponowna inicjalizacja sterownika
-  wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-  esp_wifi_init(&cfg);
-  esp_wifi_set_mode(WIFI_MODE_STA);
-  esp_wifi_start();
+  // 2. Wróć do trybu STA
+  WiFi.mode(WIFI_STA);
+  delay(300);
+
+  // 3. Spróbuj ponownie połączyć się z ostatnią znaną siecią
+  WiFi.begin();
   delay(500);
 
-  // 4. Restart AutoConnect
-  portal.begin();
-  delay(500);
-
-  Serial.println("=== WiFi stack restarted ===");
+  Serial.println("=== WiFi stack restarted (soft) ===");
 }
 
 void WiFiTask(void *pv) {
@@ -869,7 +899,7 @@ void initDisplayHardware() {
 }
 
 void initBrightnessHardware() {
-  pinMode(PIN_595_OE, OUTPUT);
+  //pinMode(PIN_595_OE, OUTPUT);
 
   ledcSetup(PWM_CH, PWM_FREQ, PWM_RES);
   ledcAttachPin(PIN_595_OE, PWM_CH);
@@ -894,7 +924,7 @@ void resetSettings() {
   prefs.putBool("autoB", true);
   prefs.end();
 
-  g_brightness = 220;
+  g_brightness = 150;
   g_autoBrightness = true;
 }
 
@@ -933,11 +963,19 @@ void setupTime() {
         int lastSec = timeinfo.tm_sec;
 
         // Czekamy na przejście do nowej sekundy
-        while (true) {
+        // while (true) {
+        //   getLocalTime(&timeinfo);
+        //   if (timeinfo.tm_sec != lastSec) return;
+        //   delay(1);
+        // }
+        // alternatywa
+        unsigned long waitStart = millis();
+        while (millis() - waitStart < 1500) {
           getLocalTime(&timeinfo);
           if (timeinfo.tm_sec != lastSec) return;
           delay(1);
         }
+        return;
       }
     }
     delay(10);
