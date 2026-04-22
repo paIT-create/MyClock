@@ -1040,8 +1040,6 @@ void setup() {
   WiFi.setAutoReconnect(false);
   WiFi.persistent(true);
 
-  portal.begin();
-
   loadSettings();
   initDisplayHardware();
 
