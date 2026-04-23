@@ -28,6 +28,7 @@
 
 // Time
 #include <time.h>
+#include "esp_sntp.h" // Niezbędne do zmiany interwału i callbacka
 
 // DS18B20
 #include <OneWire.h>
@@ -379,10 +380,6 @@ void TimeTask(void *pv) {
   struct tm ti;
   int lastSec = -1;
 
-  static unsigned long lastSync = 0;
-  //const unsigned long SYNC_INTERVAL = 6UL * 60UL * 60UL * 1000UL; // 6 godzin
-  const unsigned long SYNC_INTERVAL = 3UL * 60UL * 1000UL; // 3 min test
-
   for (;;) {
     // --- odczyt czasu z RTC ---
     if (getLocalTime(&ti, 50)) {
@@ -392,14 +389,6 @@ void TimeTask(void *pv) {
         g_minute = ti.tm_min;
         g_second = ti.tm_sec;
         g_timeValid = true;
-      }
-    }
-    // --- automatyczna synchronizacja NTP ---
-    if (WiFi.status() == WL_CONNECTED) {
-      if (millis() - lastSync > SYNC_INTERVAL) {
-        lastSync = millis();
-        Serial.println("NTP: forcing resync...");
-        sntp_restart();   // wymusza ponowne pobranie czasu
       }
     }
     vTaskDelay(1);
@@ -546,7 +535,17 @@ void setupTime() {
   }
   // If we get here: no NTP sync; LogicTask will show ----
 }
-
+// Funkcja wywoływana automatycznie po udanej synchronizacji
+void timeSyncCallback(struct timeval *tv) {
+  Serial.println("----------------------------------------------");
+  Serial.println("🔔 SUKCES: Czas został zsynchronizowany z NTP!");
+  
+  struct tm timeinfo;
+  getLocalTime(&timeinfo);
+  Serial.print("Aktualny czas: ");
+  Serial.println(&timeinfo, "%A, %B %d %Y %H:%M:%S");
+  Serial.println("----------------------------------------------");
+}
 // -----------------------------------------------------------------------------
 // WiFiTask (AutoConnect + UI + status)
 // -----------------------------------------------------------------------------
@@ -909,6 +908,14 @@ void setup() {
 
   WiFi.setAutoReconnect(false);
   WiFi.persistent(true);
+
+  // Skrócenie czasu między odpytaniami (DLA TESTÓW)
+  // Domyślnie jest to 1 godzina (3600000 ms).
+  // Ustawiamy np. na 20 sekund (20000 ms), aby szybko zobaczyć efekty.
+  // UWAGA: Minimalny zalecany czas dla serwerów publicznych to 15s.
+  sntp_set_sync_interval(60000); 
+  // Rejestracja powiadomienia (musi być przed configTzTime)
+  sntp_set_time_sync_notification_cb(timeSyncCallback);
 
   loadSettings();
   initDisplayHardware();
