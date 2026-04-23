@@ -455,11 +455,6 @@ void wifiWatchdog() {
       g_forceWifiDot = true;
       Serial.println("WiFi LOST");
 
-      WiFi.mode(WIFI_OFF);
-      delay(200);
-      WiFi.mode(WIFI_STA);
-      delay(200);
-      WiFi.begin();
     }
   }
 }
@@ -538,6 +533,7 @@ void WiFiTask(void *pv) {
   showBootId4();
 
   portalConfig.autoReconnect = true;
+  portalConfig.reconnectInterval = 6; // Przerwa między próbami (w jednostkach 5s, tu: 30s)
   portalConfig.retainPortal = true;
   portalConfig.apid = String("ESP32-Clock-") + id;
   portalConfig.psk = "Al@m@kot@";
