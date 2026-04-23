@@ -28,7 +28,7 @@
 
 // Time
 #include <time.h>
-#include "esp_sntp.h" // Niezbędne do zmiany interwału i callbacka
+#include "esp_sntp.h"  // Niezbędne do zmiany interwału i callbacka
 
 // DS18B20
 #include <OneWire.h>
@@ -359,29 +359,11 @@ void BrightnessTask(void *pv) {
 // -----------------------------------------------------------------------------
 // TimeTask
 // -----------------------------------------------------------------------------
-// void TimeTask(void *pv) {
-//   struct tm ti;
-//   int lastSec = -1;
-
-//   for (;;) {
-//     if (getLocalTime(&ti, 50)) {
-//       if (ti.tm_sec != lastSec) {
-//         lastSec = ti.tm_sec;
-//         g_hour = ti.tm_hour;
-//         g_minute = ti.tm_min;
-//         g_second = ti.tm_sec;
-//         g_timeValid = true;
-//       }
-//     }
-//     vTaskDelay(1);
-//   }
-// }
 void TimeTask(void *pv) {
   struct tm ti;
   int lastSec = -1;
 
   for (;;) {
-    // --- odczyt czasu z RTC ---
     if (getLocalTime(&ti, 50)) {
       if (ti.tm_sec != lastSec) {
         lastSec = ti.tm_sec;
@@ -539,7 +521,7 @@ void setupTime() {
 void timeSyncCallback(struct timeval *tv) {
   Serial.println("----------------------------------------------");
   Serial.println("🔔 SUKCES: Czas został zsynchronizowany z NTP!");
-  
+
   struct tm timeinfo;
   getLocalTime(&timeinfo);
   Serial.print("Aktualny czas: ");
@@ -913,7 +895,9 @@ void setup() {
   // Domyślnie jest to 1 godzina (3600000 ms).
   // Ustawiamy np. na 20 sekund (20000 ms), aby szybko zobaczyć efekty.
   // UWAGA: Minimalny zalecany czas dla serwerów publicznych to 15s.
-  sntp_set_sync_interval(60000); 
+
+  // sntp_set_sync_interval(60000);
+
   // Rejestracja powiadomienia (musi być przed configTzTime)
   sntp_set_time_sync_notification_cb(timeSyncCallback);
 
