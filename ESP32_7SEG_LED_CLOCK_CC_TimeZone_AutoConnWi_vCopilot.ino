@@ -358,11 +358,33 @@ void BrightnessTask(void *pv) {
 // -----------------------------------------------------------------------------
 // TimeTask
 // -----------------------------------------------------------------------------
+// void TimeTask(void *pv) {
+//   struct tm ti;
+//   int lastSec = -1;
+
+//   for (;;) {
+//     if (getLocalTime(&ti, 50)) {
+//       if (ti.tm_sec != lastSec) {
+//         lastSec = ti.tm_sec;
+//         g_hour = ti.tm_hour;
+//         g_minute = ti.tm_min;
+//         g_second = ti.tm_sec;
+//         g_timeValid = true;
+//       }
+//     }
+//     vTaskDelay(1);
+//   }
+// }
 void TimeTask(void *pv) {
   struct tm ti;
   int lastSec = -1;
 
+  static unsigned long lastSync = 0;
+  //const unsigned long SYNC_INTERVAL = 6UL * 60UL * 60UL * 1000UL; // 6 godzin
+  const unsigned long SYNC_INTERVAL = 3UL * 60UL * 1000UL; // 3 min test
+
   for (;;) {
+    // --- odczyt czasu z RTC ---
     if (getLocalTime(&ti, 50)) {
       if (ti.tm_sec != lastSec) {
         lastSec = ti.tm_sec;
@@ -372,10 +394,17 @@ void TimeTask(void *pv) {
         g_timeValid = true;
       }
     }
+    // --- automatyczna synchronizacja NTP ---
+    if (WiFi.status() == WL_CONNECTED) {
+      if (millis() - lastSync > SYNC_INTERVAL) {
+        lastSync = millis();
+        Serial.println("NTP: forcing resync...");
+        sntp_restart();   // wymusza ponowne pobranie czasu
+      }
+    }
     vTaskDelay(1);
   }
 }
-
 // -----------------------------------------------------------------------------
 // TempTask
 // -----------------------------------------------------------------------------
