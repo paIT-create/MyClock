@@ -454,7 +454,6 @@ void wifiWatchdog() {
       wifiWasConnected = false;
       g_forceWifiDot = true;
       Serial.println("WiFi LOST");
-
     }
   }
 }
@@ -533,7 +532,7 @@ void WiFiTask(void *pv) {
   showBootId4();
 
   portalConfig.autoReconnect = true;
-  portalConfig.reconnectInterval = 6; // Przerwa między próbami (w jednostkach 5s, tu: 30s)
+  portalConfig.reconnectInterval = 6;  // Przerwa między próbami (w jednostkach 5s, tu: 30s)
   portalConfig.retainPortal = true;
   portalConfig.apid = String("ESP32-Clock-") + id;
   portalConfig.psk = "Al@m@kot@";
@@ -911,7 +910,6 @@ void setup() {
   xTaskCreatePinnedToCore(LogicTask, "Logic", 4096, nullptr, 1, nullptr, 1);
   xTaskCreatePinnedToCore(BrightnessTask, "Bright", 2048, nullptr, 1, nullptr, 1);
   xTaskCreatePinnedToCore(WiFiTask, "WiFi", 8192, nullptr, 1, nullptr, 1);
-
 }
 
 void loop() {
