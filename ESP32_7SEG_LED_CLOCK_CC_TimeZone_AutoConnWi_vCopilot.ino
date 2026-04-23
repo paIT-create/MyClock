@@ -111,28 +111,8 @@ volatile bool g_timeValid = false;
 volatile bool g_tempValid = false;
 
 // WiFi watchdog
-volatile bool g_wifiLost = false;
 volatile bool g_forceWifiDot = false;
-unsigned long g_wifiLostTimestamp = 0;
-unsigned long g_wifiLastRetry = 0;
-unsigned long g_wifiLastRescan = 0;
-
-enum WifiState {
-  WIFI_LOST_IDLE,
-  WIFI_SCANNING,
-  WIFI_TRY_CREDENTIALS
-};
-
-WifiState wifiState = WIFI_LOST_IDLE;
-
-unsigned long wifiScanStart = 0;
-unsigned long wifiTryStart = 0;
-int wifiScanCount = 0;
-int wifiCredIndex = 0;
-
-const unsigned long WIFI_RETRY_INTERVAL = 30UL * 1000UL;        // 30 s
-const unsigned long WIFI_RETRY_TIMEOUT = 2UL * 60UL * 1000UL;   // 10 min
-const unsigned long WIFI_RESCAN_TIMEOUT = 3UL * 60UL * 1000UL;  // 15 min
+bool wifiWasConnected = false;
 
 // OTA status
 volatile bool g_otaActive = false;
@@ -459,152 +439,22 @@ void LogicTask(void *pv) {
     vTaskDelay(1);
   }
 }
-
-// -----------------------------------------------------------------------------
-// WiFi watchdog (soft reset, no portal restart)
-// -----------------------------------------------------------------------------
-void hardResetWiFi() {
-  Serial.println("=== SOFT RESET WiFi stack ===");
-
-  WiFi.disconnect(true, true);
-  delay(200);
-
-  WiFi.mode(WIFI_OFF);
-  delay(300);
-
-  WiFi.mode(WIFI_STA);
-  delay(300);
-
-  WiFi.begin();
-  delay(500);
-
-  Serial.println("=== WiFi stack restarted ===");
-}
-
-void forceReconnectAllNetworks() {
-  Serial.println("=== WiFiMulti full rescan ===");
-
-  WiFi.disconnect(true, true);
-  delay(200);
-
-  WiFi.mode(WIFI_STA);
-  delay(200);
-
-  // Wymusza skanowanie wszystkich zapisanych sieci AutoConnect
-  portal.handleClient();  // ważne: odświeża listę SSID
-  WiFi.begin();           // próbuje ostatniej znanej
-  delay(500);
-
-  Serial.println("=== WiFiMulti rescan done ===");
-}
-
+// Minimalny watchdog — tylko kropka przy utracie WiFi
 void wifiWatchdog() {
-  unsigned long now = millis();
   wl_status_t st = WiFi.status();
 
-  // --- WiFi OK ---
   if (st == WL_CONNECTED) {
-    if (g_wifiLost) {
-      g_wifiLost = false;
+    if (!wifiWasConnected) {
+      wifiWasConnected = true;
       g_forceWifiDot = false;
-      wifiState = WIFI_LOST_IDLE;
-      Serial.println("WiFi restored");
+      Serial.println("WiFi OK");
     }
-    return;
-  }
-
-  // --- WiFi LOST ---
-  if (!g_wifiLost) {
-    g_wifiLost = true;
-    g_forceWifiDot = true;
-    g_wifiLastRetry = now;
-    g_wifiLastRescan = now;
-    wifiState = WIFI_LOST_IDLE;
-    Serial.println("WiFi lost — starting recovery attempts");
-  }
-
-  // --- STATE 0: IDLE (reconnect co 30 s) ---
-  if (wifiState == WIFI_LOST_IDLE) {
-
-    if (now - g_wifiLastRetry > WIFI_RETRY_INTERVAL) {
-      g_wifiLastRetry = now;
-      Serial.println("Reconnect attempt");
-      WiFi.disconnect(false, false);
-      WiFi.begin();  // próba ostatniej znanej sieci
+  } else {
+    if (wifiWasConnected) {
+      wifiWasConnected = false;
+      g_forceWifiDot = true;
+      Serial.println("WiFi LOST");
     }
-
-    if (now - g_wifiLastRescan > WIFI_RESCAN_TIMEOUT) {
-      g_wifiLastRescan = now;
-      Serial.println("Starting scan...");
-      WiFi.scanDelete();
-      WiFi.scanNetworks(true);  // async
-      wifiState = WIFI_SCANNING;
-    }
-
-    return;
-  }
-
-  // --- STATE 1: SCANNING ---
-  if (wifiState == WIFI_SCANNING) {
-
-    int res = WiFi.scanComplete();
-    if (res == WIFI_SCAN_RUNNING) return;
-
-    if (res < 0) {
-      Serial.println("Scan failed");
-      wifiState = WIFI_LOST_IDLE;
-      return;
-    }
-
-    wifiScanCount = res;
-    Serial.printf("Scan done: %d networks\n", wifiScanCount);
-
-    wifiCredIndex = 0;
-    wifiTryStart = now;
-    wifiState = WIFI_TRY_CREDENTIALS;
-    return;
-  }
-
-  // --- STATE 2: TRY_CREDENTIALS ---
-  if (wifiState == WIFI_TRY_CREDENTIALS) {
-
-    AutoConnectCredential cred;
-    int total = cred.entries();
-
-    if (wifiCredIndex >= total) {
-      Serial.println("No stored networks matched");
-      wifiState = WIFI_LOST_IDLE;
-      return;
-    }
-
-    if (now - wifiTryStart < 5000) return;
-    wifiTryStart = now;
-
-    station_config_t cfg;
-    if (!cred.load(wifiCredIndex, &cfg)) {
-      wifiCredIndex++;
-      return;
-    }
-
-    String ssid = String((char *)cfg.ssid);
-    String pass = String((char *)cfg.password);
-
-    bool found = false;
-    for (int i = 0; i < wifiScanCount; i++) {
-      if (WiFi.SSID(i) == ssid) {
-        found = true;
-        break;
-      }
-    }
-
-    if (found) {
-      Serial.printf("Trying stored SSID: %s\n", ssid.c_str());
-      WiFi.disconnect(false, false);
-      WiFi.begin(ssid.c_str(), pass.c_str());
-    }
-
-    wifiCredIndex++;
-    return;
   }
 }
 // -----------------------------------------------------------------------------
@@ -689,6 +539,7 @@ void WiFiTask(void *pv) {
   portalConfig.menuItems |= AC_MENUITEM_DELETESSID;
   portal.config(portalConfig);
 
+  // OTA callbacks
   ota.onStart([]() {
     g_otaActive = true;
   });
@@ -1058,6 +909,7 @@ void setup() {
   xTaskCreatePinnedToCore(LogicTask, "Logic", 4096, nullptr, 1, nullptr, 1);
   xTaskCreatePinnedToCore(BrightnessTask, "Bright", 2048, nullptr, 1, nullptr, 1);
   xTaskCreatePinnedToCore(WiFiTask, "WiFi", 8192, nullptr, 1, nullptr, 1);
+
 }
 
 void loop() {
