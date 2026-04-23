@@ -397,6 +397,48 @@ void TempTask(void *pv) {
 // -----------------------------------------------------------------------------
 // LogicTask
 // -----------------------------------------------------------------------------
+// void LogicTask(void *pv) {
+//   static int lastSec = -1;
+
+//   for (;;) {
+//     if (g_showBootId) {
+//       vTaskDelay(pdMS_TO_TICKS(50));
+//       continue;
+//     }
+
+//     if (!g_timeValid || !g_tempValid) {
+//       setDisplayDashes();
+//       vTaskDelay(pdMS_TO_TICKS(200));
+//       continue;
+//     }
+
+//     if (g_second != lastSec) {
+//       lastSec = g_second;
+
+//       bool colon = (g_second % 2) == 0;
+
+//       uint32_t now = millis();
+//       uint32_t phase = now % 20000;  // 20 s cycle
+
+//       g_showTemp = (phase < 5000);  // 0–5 s temp, 5–20 s time
+
+//       if (g_showTemp) {
+//         setDisplayTemp(g_tempC);
+//       } else {
+//         setDisplayTime(g_hour, g_minute, colon);
+//       }
+
+//       if (g_forceWifiDot) {
+//         g_displayNext[3] |= SEG_DP;
+//       } else {
+//         g_displayNext[3] &= ~SEG_DP;
+//       }
+//       commitDisplayBuffer();
+//     }
+
+//     vTaskDelay(1);
+//   }
+// }
 void LogicTask(void *pv) {
   static int lastSec = -1;
 
@@ -408,33 +450,37 @@ void LogicTask(void *pv) {
 
     if (!g_timeValid || !g_tempValid) {
       setDisplayDashes();
+      commitDisplayBuffer();   // <-- ważne!
       vTaskDelay(pdMS_TO_TICKS(200));
       continue;
     }
 
+    uint32_t now = millis();
+    uint32_t phase = now % 20000;
+    bool showTemp = (phase < 5000);
+
+    // --- miganie kropki sekund ---
+    bool colon = false;
     if (g_second != lastSec) {
       lastSec = g_second;
-
-      bool colon = (g_second % 2) == 0;
-
-      uint32_t now = millis();
-      uint32_t phase = now % 20000;  // 20 s cycle
-
-      g_showTemp = (phase < 5000);  // 0–5 s temp, 5–20 s time
-
-      if (g_showTemp) {
-        setDisplayTemp(g_tempC);
-      } else {
-        setDisplayTime(g_hour, g_minute, colon);
-      }
-
-      if (g_forceWifiDot) {
-        g_displayNext[3] |= SEG_DP;
-      } else {
-        g_displayNext[3] &= ~SEG_DP;
-      }
-      commitDisplayBuffer();
+      colon = (g_second % 2) == 0;
     }
+
+    // --- ZAWSZE aktualizujemy bufor ---
+    if (showTemp) {
+      setDisplayTemp(g_tempC);
+    } else {
+      setDisplayTime(g_hour, g_minute, colon);
+    }
+
+    // --- kropka WiFi ---
+    if (g_forceWifiDot) {
+      g_displayNext[3] |= SEG_DP;
+    } else {
+      g_displayNext[3] &= ~SEG_DP;
+    }
+
+    commitDisplayBuffer();  // <-- kluczowe: zawsze
 
     vTaskDelay(1);
   }
