@@ -21,7 +21,6 @@
 
 // WiFi / Portal / OTA
 #include <WiFi.h>
-#include <esp_wifi.h>
 #include <WebServer.h>
 #include <AutoConnect.h>
 #include <AutoConnectOTA.h>
@@ -510,9 +509,6 @@ void wifiWatchdog() {
       g_forceWifiDot = false;
       wifiState = WIFI_LOST_IDLE;
       Serial.println("WiFi restored");
-
-      // przywróć pełny portal AP+STA
-      portal.begin();
     }
     return;
   }
@@ -527,27 +523,21 @@ void wifiWatchdog() {
     Serial.println("WiFi lost — starting recovery attempts");
   }
 
-  // --- STATE 0: IDLE ---
+  // --- STATE 0: IDLE (reconnect co 30 s) ---
   if (wifiState == WIFI_LOST_IDLE) {
 
-    // reconnect co 30 s
     if (now - g_wifiLastRetry > WIFI_RETRY_INTERVAL) {
       g_wifiLastRetry = now;
       Serial.println("Reconnect attempt");
-
-      esp_wifi_disconnect();   // KLUCZOWE — przerywa łączenie
-      WiFi.begin();            // próba ostatniej sieci
+      WiFi.disconnect(false, false);
+      WiFi.begin();  // próba ostatniej znanej sieci
     }
 
-    // skan co X minut
     if (now - g_wifiLastRescan > WIFI_RESCAN_TIMEOUT) {
       g_wifiLastRescan = now;
       Serial.println("Starting scan...");
-
-      esp_wifi_disconnect();   // KLUCZOWE — odblokowuje sterownik
-
       WiFi.scanDelete();
-      WiFi.scanNetworks(true); // async
+      WiFi.scanNetworks(true);  // async
       wifiState = WIFI_SCANNING;
     }
 
@@ -596,8 +586,8 @@ void wifiWatchdog() {
       return;
     }
 
-    String ssid = String((char*)cfg.ssid);
-    String pass = String((char*)cfg.password);
+    String ssid = String((char *)cfg.ssid);
+    String pass = String((char *)cfg.password);
 
     bool found = false;
     for (int i = 0; i < wifiScanCount; i++) {
@@ -609,7 +599,7 @@ void wifiWatchdog() {
 
     if (found) {
       Serial.printf("Trying stored SSID: %s\n", ssid.c_str());
-      esp_wifi_disconnect();   // KLUCZOWE — przerywa poprzednie łączenie
+      WiFi.disconnect(false, false);
       WiFi.begin(ssid.c_str(), pass.c_str());
     }
 
@@ -691,9 +681,8 @@ void WiFiTask(void *pv) {
 
   showBootId4();
 
-  portalConfig.autoReconnect = false;
+  portalConfig.autoReconnect = true;
   portalConfig.retainPortal = true;
-  portalConfig.autoRise = true;
   portalConfig.apid = String("ESP32-Clock-") + id;
   portalConfig.psk = "Al@m@kot@";
   portalConfig.hostName = g_hostName.c_str();
