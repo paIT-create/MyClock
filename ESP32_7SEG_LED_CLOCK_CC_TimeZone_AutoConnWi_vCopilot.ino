@@ -441,6 +441,7 @@ void TempTask(void *pv) {
 // }
 void LogicTask(void *pv) {
   static int lastSec = -1;
+  static bool colon = false;
 
   for (;;) {
     if (g_showBootId) {
@@ -460,7 +461,6 @@ void LogicTask(void *pv) {
     bool showTemp = (phase < 5000);
 
     // --- miganie kropki sekund ---
-    bool colon = false;
     if (g_second != lastSec) {
       lastSec = g_second;
       colon = (g_second % 2) == 0;
