@@ -454,6 +454,12 @@ void wifiWatchdog() {
       wifiWasConnected = false;
       g_forceWifiDot = true;
       Serial.println("WiFi LOST");
+
+      WiFi.mode(WIFI_OFF);
+      delay(200);
+      WiFi.mode(WIFI_STA);
+      delay(200);
+      WiFi.begin();
     }
   }
 }
