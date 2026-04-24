@@ -950,7 +950,7 @@ void setup() {
   pinMode(PIN_LED, OUTPUT);
   digitalWrite(PIN_LED, LOW);
 
-  WiFi.setAutoReconnect(true);  // Pozwól ESP32 samemu dbać o połączenie
+  WiFi.setAutoReconnect(false);  // true: Pozwól ESP32 dbać o połączenie - koliduje z AC ; false: nie przeszkadza AutoConnect
   WiFi.persistent(false);       // NIE zapisuj danych WiFi przy każdym połączeniu (oszczędza Flash)
 
   // Skrócenie czasu między odpytaniami (DLA TESTÓW)
