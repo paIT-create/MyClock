@@ -211,9 +211,6 @@ function reboot() {
   }
 }
 
-// function updateClock(){
-//   document.getElementById('bigClock').textContent = hh + ":" + mm + ":" + ss;
-// }
 function updateClock() {
   // Jeśli od ostatniej synchronizacji minęło więcej niż 1s, dodaj sekundę lokalnie
   let now = new Date();
@@ -249,10 +246,6 @@ function loadStatus(){
       div.textContent=l;
       box.appendChild(div);
 
-      // if(l.startsWith("time=")){
-      //   let parts=l.substring(5).split(":");
-      //   if(parts.length === 3) { hh=parts[0]; mm=parts[1]; ss=parts[2]; updateClock(); }
-      // }
       if(l.startsWith("time=")){
         let parts = l.substring(5).split(":");
         if(parts.length === 3) {
@@ -272,9 +265,22 @@ function loadStatus(){
         document.getElementById('dateText').textContent = dayName + ", " + d;
       }
 
+      if(l.startsWith("lastSync=")){
+        document.getElementById('lastSync').textContent = "Synchronizacja: " + l.substring(9);
+      }
+
+      // if(l.startsWith("tempC=")){
+      //   let v = parseFloat(l.substring(6));
+      //   if (v > -100) { temp = v.toFixed(1); updateTemp(); }
+      // }
+
       if(l.startsWith("tempC=")){
-        let v = parseFloat(l.substring(6));
-        if (v > -100) { temp = v.toFixed(1); updateTemp(); }
+        let v = l.substring(6).trim();
+        if (v === "nan" || parseFloat(v) < -80) {
+          document.getElementById('bigTemp').textContent = "--.- °C";
+        } else {
+          document.getElementById('bigTemp').textContent = parseFloat(v).toFixed(1) + " °C";
+        }
       }
     
       if(l.startsWith("brightness=")){
@@ -313,6 +319,7 @@ window.onload = loadStatus;
   <div id="bigClock" class="bigClock">--:--:--</div>
   <div id="bigTemp" class="bigTemp">--.- °C</div>
   <div id="bigDate" class="bigDate"><span class="calendar-icon">📅</span><span id="dateText">-- --- ----</span></div>
+  <div id="lastSync" style="font-size:16px; color:#555; margin-top:10px;">Ostatnia synch: --:--</div>
 </div>
 
 <label>Jasność</label>
@@ -398,7 +405,7 @@ static const uint8_t FONT_C = SEG_A | SEG_D | SEG_E | SEG_F;
 // -----------------------------------------------------------------------------
 volatile uint8_t g_displaySeg[4] = { 0, 0, 0, 0 };
 uint8_t g_displayNext[4] = { 0, 0, 0, 0 };
-
+char g_lastSyncTimeStr[32] = "Brak synchronizacji";
 volatile int g_hour = 0;
 volatile int g_minute = 0;
 volatile int g_second = 0;
@@ -608,18 +615,18 @@ uint8_t computeAutoBrightnessFromLDR() {
   static float ema = 2000;  // Wstępna wartość średniej
   ema = 0.9f * ema + 0.1f * raw;
 
-// --- !!! DEFINICJA RODZAJU OBUDOWY !!! --- 
-//      Calibration points (ADC values)
-        // DARK  → high ADC
-        // BRIGHT → low ADC
-  // --- AUTOMATYCZNA KONFIGURACJA ---
-  #ifdef CASE_WOOD
-    const float RAW_DARK = 3900;
-    const float RAW_BRIGHT = 900;
-  #else // Domyślnie lub jeśli wybrano CASE_PLA
-    const float RAW_DARK = 2500;
-    const float RAW_BRIGHT = 20;
-  #endif
+  // --- !!! DEFINICJA RODZAJU OBUDOWY !!! ---
+  //      Calibration points (ADC values)
+  // DARK  → high ADC
+  // BRIGHT → low ADC
+// --- AUTOMATYCZNA KONFIGURACJA ---
+#ifdef CASE_WOOD
+  const float RAW_DARK = 3900;
+  const float RAW_BRIGHT = 900;
+#else  // Domyślnie lub jeśli wybrano CASE_PLA
+  const float RAW_DARK = 2500;
+  const float RAW_BRIGHT = 20;
+#endif
   // ---------------------------------
 
   // ZABEZPIECZENIE: jeśli wartości są identyczne, nie dzielimy przez zero
@@ -634,7 +641,7 @@ uint8_t computeAutoBrightnessFromLDR() {
 
   int out = (int)(B_MIN + x * (B_MAX - B_MIN));  // Zakres od 5 do 250
 
-// uncomment for measurements
+  // uncomment for measurements
   //Serial.printf("LDR raw=%d  ema=%.1f  norm=%.2f  brightness=%d\n", raw, ema, x, out);
 
   return (uint8_t)constrain(out, 0, 255);
@@ -686,18 +693,33 @@ void TimeTask(void *pv) {
 // TempTask
 // -----------------------------------------------------------------------------
 void TempTask(void *pv) {
+  //sensors.setWaitForConversion(false); // aktywowane w setup()
   for (;;) {
     sensors.requestTemperatures();
-    vTaskDelay(pdMS_TO_TICKS(800));
+    vTaskDelay(pdMS_TO_TICKS(800));  // Czekamy na konwersję
 
-    float t = sensors.getTempCByIndex(0);
-    // Sprawdzamy czy odczyt jest poprawny (nie -127 i nie NAN)
-    if (t > -80.0f && t < 150.0f) {
+    float t = NAN;
+    int retryCount = 0;
+    const int maxRetries = 3;
+
+    while (retryCount < maxRetries) {
+      t = sensors.getTempCByIndex(0);
+      // Sprawdzamy czy odczyt jest poprawny (nie -127 i nie NAN)
+      if (t > -80.0f && t < 150.0f) {
+        break;  // Mamy poprawny odczyt, wychodzimy z pętli while
+      }
+      retryCount++;
+      vTaskDelay(pdMS_TO_TICKS(150));  // Krótka przerwa przed ponowieniem
+    }
+
+    if (!isnan(t) && t > -80.0f) {
       g_tempC = t;
       g_tempValid = true;
     } else {
-      // Opcjonalnie: g_tempValid = false; // aby kreski "----" wróciły przy awarii
-      Serial.println("Błąd odczytu DS18B20!");
+      Serial.printf("❌ Błąd DS18B20 po %d próbach!\n", maxRetries);
+      // zmieniamy g_tempValid (plus zerujemy g_tempC), aby wyłączyć wyświetlanie temperatury
+      g_tempValid = false;
+      g_tempC = NAN;
     }
 
     vTaskDelay(pdMS_TO_TICKS(15000));
@@ -827,7 +849,7 @@ void loadSettings() {
 // -----------------------------------------------------------------------------
 // Time setup (NTP + DST)
 // -----------------------------------------------------------------------------
-  /* TESTY ZMIANY CZASU
+/* TESTY ZMIANY CZASU
   //configTzTime("CET-1CEST,M3.5.0/2,M4.3.1/9", "tempus1.gum.gov.pl", "pl.pool.ntp.org", "tempus2.gum.gov.pl");
   M3.5.0/2 — początek czasu letniego
   Format: M<miesiąc>.<tydzień>.<dzień tygodnia>/<godzina>
@@ -877,10 +899,14 @@ void timeSyncCallback(struct timeval *tv) {
   Serial.println("----------------------------------------------");
   Serial.println("🔔 SUKCES: Czas został zsynchronizowany z NTP!");
 
-  struct tm timeinfo;
-  getLocalTime(&timeinfo);
+  struct tm ti;
+  getLocalTime(&ti);
+  // Formatujemy datę i godzinę sukcesu
+  snprintf(g_lastSyncTimeStr, sizeof(g_lastSyncTimeStr), "%02d.%02d %02d:%02d:%02d",
+           ti.tm_mday, ti.tm_mon + 1, ti.tm_hour, ti.tm_min, ti.tm_sec);
+  //Serial.println(g_lastSyncTimeStr);
   Serial.print("Aktualny czas: ");
-  Serial.println(&timeinfo, "%A, %B %d %Y %H:%M:%S");
+  Serial.println(&ti, "%A, %B %d %Y %H:%M:%S");
   Serial.println("----------------------------------------------");
 }
 // -----------------------------------------------------------------------------
@@ -942,8 +968,8 @@ void WiFiTask(void *pv) {
     }
 
     int out = snprintf(s, sizeof(s),
-                       "id=%s\nhostname=%s\ntime=%02d:%02d:%02d\ndate=%s\nday=%s\ntempC=%.1f\nd18b20_res=%d\nbrightness=%d\nautoBrightness=%d\nwifi=%s\n",
-                       g_deviceId.c_str(), g_hostName.c_str(), g_hour, g_minute, g_second, dateBuf, dayName,
+                       "id=%s\nhostname=%s\ntime=%02d:%02d:%02d\ndate=%s\nday=%s\nlastSync=%s\ntempC=%.1f\nd18b20_res=%d\nbrightness=%d\nautoBrightness=%d\nwifi=%s\n",
+                       g_deviceId.c_str(), g_hostName.c_str(), g_hour, g_minute, g_second, dateBuf, dayName, g_lastSyncTimeStr,
                        g_tempC, getDS18B20Resolution(), g_brightness, (g_autoBrightness ? 1 : 0),
                        (WiFi.status() == WL_CONNECTED ? "connected" : "disconnected"));
 
