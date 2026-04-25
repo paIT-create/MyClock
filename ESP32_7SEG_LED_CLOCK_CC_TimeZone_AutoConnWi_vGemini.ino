@@ -16,10 +16,6 @@
   ✔ AutoConnect 1.4.2
   ✔ PageBuilder 1.5.6
 */
-// --- PRZED KOMPLILACJĄ ZDEFINIUJ RODZAJ OBUDOWY W BLOKU ---
-// --- !!! DEFINICJA RODZAJU OBUDOWY !!! ---              ---
-// --- PRZED KOMPLILACJĄ ZDEFINIUJ RODZAJ OBUDOWY W BLOKU ---
-
 #include <Arduino.h>
 
 // WiFi / Portal / OTA
@@ -42,6 +38,11 @@
 
 // Watchdog Timer (WDT)
 #include <esp_task_wdt.h>
+
+// --- PRZED KOMPLILACJĄ ZDEFINIUJ RODZAJ OBUDOWY ---
+#define CASE_WOOD
+// #define CASE_PLA
+// --- PRZED KOMPLILACJĄ ZDEFINIUJ RODZAJ OBUDOWY ---
 
 // --- KOD HTML W PAMIĘCI FLASH ---
 const char CONFIG_HTML[] PROGMEM = R"rawliteral(
@@ -611,16 +612,15 @@ uint8_t computeAutoBrightnessFromLDR() {
 //      Calibration points (ADC values)
         // DARK  → high ADC
         // BRIGHT → low ADC
-
-  // --- OBUDOWA TYPU WOOD ---
-  const float RAW_DARK = 3900;
-  const float RAW_BRIGHT = 900;
-
-  // --- OBUDOWA TYPU PLA ---
-  // const float RAW_DARK = 2500;
-  // const float RAW_BRIGHT = 20;
-
-// --- !!! ------------------------- !!! ---
+  // --- AUTOMATYCZNA KONFIGURACJA ---
+  #ifdef CASE_WOOD
+    const float RAW_DARK = 3900;
+    const float RAW_BRIGHT = 900;
+  #else // Domyślnie lub jeśli wybrano CASE_PLA
+    const float RAW_DARK = 2500;
+    const float RAW_BRIGHT = 20;
+  #endif
+  // ---------------------------------
 
   // ZABEZPIECZENIE: jeśli wartości są identyczne, nie dzielimy przez zero
   if (abs(RAW_DARK - RAW_BRIGHT) < 10) return 128;
