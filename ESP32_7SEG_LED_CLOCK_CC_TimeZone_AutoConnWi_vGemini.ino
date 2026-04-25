@@ -77,7 +77,7 @@ h2{
   text-shadow:0 0 12px #0088ff,0 0 22px #0066ff;
 }
 label{
-  display:block;margin-top:25px;font-weight:600;color:#9fc9ff;
+  display:block;margin-top:10px;font-weight:600;color:#9fc9ff;
   text-shadow:0 0 6px #0044aa;
 }
 .value{font-size:14px;color:#aaa;margin-top:6px;}
