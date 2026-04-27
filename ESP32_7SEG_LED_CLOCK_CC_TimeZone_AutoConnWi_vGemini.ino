@@ -11,6 +11,7 @@
   - Config UI: /config
   - mDNS: esp32-clock-XXXX.local
   - Brightness: OE pin PWM + optional auto brightness from LDR (ADC)
+  - Web UI
   
   ✔ ESP32 core 2.0.17  
   ✔ AutoConnect 1.4.2
@@ -38,11 +39,6 @@
 
 // Watchdog Timer (WDT)
 #include <esp_task_wdt.h>
-
-// --- PRZED KOMPLILACJĄ ZDEFINIUJ RODZAJ OBUDOWY ---
-#define CASE_WOOD
-// #define CASE_PLA
-// --- PRZED KOMPLILACJĄ ZDEFINIUJ RODZAJ OBUDOWY ---
 
 // --- KOD HTML W PAMIĘCI FLASH ---
 const char CONFIG_HTML[] PROGMEM = R"rawliteral(
@@ -158,6 +154,7 @@ let firstStatus = true;
 let debounceTimer; // Timer dla suwaka jasności
 let localTime = new Date();
 let lastSyncTime = 0;
+let isEditing = false; // Flaga blokująca auto-odświeżanie pól podczas wpisywania
 
 // Funkcja Debounce: wysyła żądanie dopiero 150ms po zakończeniu ruchu suwakiem
 function setBright(v) {
@@ -191,6 +188,17 @@ function save(){
     if(r.ok) alert('Ustawienia zapisane trwale w pamięci Flash');
     else alert('Błąd zapisu');
   });
+}
+
+function applyAdv() {
+  let to = document.getElementById('tOff').value;
+  let rd = document.getElementById('rDark').value;
+  let rb = document.getElementById('rBright').value;
+  fetch(`/set?tOff=${to}&rDark=${rd}&rBright=${rb}`).then(() => {
+    alert('Zastosowano! Nie zapomnij zapisać na stałe.');
+    console.log("Parametry kalibracji przesłane");
+    isEditing = false; // Po zapisaniu pozwalamy na odświeżenie pól z urządzenia
+    });
 }
 
 function reset(){
@@ -269,11 +277,6 @@ function loadStatus(){
         document.getElementById('lastSync').textContent = "Synchronizacja: " + l.substring(9);
       }
 
-      // if(l.startsWith("tempC=")){
-      //   let v = parseFloat(l.substring(6));
-      //   if (v > -100) { temp = v.toFixed(1); updateTemp(); }
-      // }
-
       if(l.startsWith("tempC=")){
         let v = l.substring(6).trim();
         if (v === "nan" || parseFloat(v) < -80) {
@@ -299,9 +302,35 @@ function loadStatus(){
         document.getElementById('auto').checked = isAuto;
         document.getElementById('bright').disabled = isAuto; // Blokada suwaka
       }
+      // Obsługa pól kalibracji (tylko jeśli użytkownik nie klika w nie teraz)
+      if (!isEditing) {
+        if(l.startsWith("tOff=")) document.getElementById('tOff').value = l.substring(5);
+        if(l.startsWith("rDark=")) document.getElementById('rDark').value = l.substring(6);
+        if(l.startsWith("rBright=")) document.getElementById('rBright').value = l.substring(8);
+      }
+
+      if(l.startsWith("rawLDR=")) {
+        let val = l.substring(7);
+        document.getElementById('liveLDR').textContent = val;
+  
+        // Opcjonalnie: zmiana koloru jeśli wartość zbliża się do progów
+        let rd = parseInt(document.getElementById('rDark').value);
+        let rb = parseInt(document.getElementById('rBright').value);
+        if(val >= rd || val <= rb) {
+          document.getElementById('liveLDR').style.color = "#ff4444"; // Alarm - poza zakresem
+        } else {
+          document.getElementById('liveLDR').style.color = "#00ffaa"; // OK
+        }
+      }
+
     });
     firstStatus = false;
   }).catch(err => console.log("Status offline"));
+}
+
+// Obsługa flagi edycji - gdy użytkownik kliknie w pole, przestajemy nadpisywać mu tekst
+function setEdit(state) {
+  isEditing = state;
 }
 
 // Odświeżanie co 1 sekundę
@@ -330,6 +359,32 @@ window.onload = loadStatus;
 <input type="checkbox" id="auto" onchange="setAuto()">
 
 <button class="btn save" onclick="save()">💾 Zapisz</button>
+<details style="margin-top:10px; text-align:left; color:#6ab8ff;">
+  <summary style="cursor:pointer; font-weight:bold; padding:10px;">⚙️ Zaawansowana Kalibracja</summary>
+  <div style="padding:15px; background:#0a0c12; border-radius:12px; margin-top:5px; border:1px solid #0070ff44;">
+    
+    <label style="font-size:13px;">Korekta Temp (°C)</label>
+    <input type="number" id="tOff" step="0.1" onfocus="setEdit(true)" onblur="setEdit(false)" 
+           style="width:90%; background:#05060a; color:#ffdd88; border:1px solid #333; padding:8px; margin:5px 0; border-radius:6px;">
+    
+    <div style="margin: 10px 0; padding: 8px; background: #1a1d26; border-radius: 6px; text-align: center; border: 1px solid #0070ff22;">
+      <span style="font-size: 11px; color: #888; text-transform: uppercase;">Aktualny odczyt sensora:</span>
+      <div id="liveLDR" style="font-size: 20px; color: #00ffaa; font-weight: bold; text-shadow: 0 0 10px #00ffaa66;">----</div>
+    </div>
+    <label style="font-size:13px; display:block; margin-top:10px;">LDR Dark (Raw ADC)</label>
+    <div style="font-size:11px; color:#666; margin-bottom:5px;">Wartość przy całkowitej ciemności</div>
+    <input type="number" id="rDark" onfocus="setEdit(true)" onblur="setEdit(false)"
+           style="width:90%; background:#05060a; color:#6ab8ff; border:1px solid #333; padding:8px; margin:5px 0; border-radius:6px;">
+    
+    <label style="font-size:13px; display:block; margin-top:10px;">LDR Bright (Raw ADC)</label>
+    <div style="font-size:11px; color:#666; margin-bottom:5px;">Wartość przy pełnym świetle</div>
+    <input type="number" id="rBright" onfocus="setEdit(true)" onblur="setEdit(false)"
+           style="width:90%; background:#05060a; color:#6ab8ff; border:1px solid #333; padding:8px; margin:5px 0; border-radius:6px;">
+    
+    <button class="btn save" style="margin-top:15px; padding:10px; font-size:14px;" onclick="applyAdv()">⚡ Zastosuj korekty</button>
+    <div style="font-size:10px; color:#444; margin-top:8px; text-align:center;">Zmiany będą aktywne do restartu, chyba że klikniesz główny przycisk Zapisz.</div>
+  </div>
+</details>
 <button class="btn reset" onclick="reset()">↺ Reset</button>
 <button class="btn reset" onclick="location.href='/_ac'">🌐 Portal WiFi (AutoConnect)</button>
 
@@ -356,6 +411,7 @@ static const int PIN_595_OE = 27;   // OE (PWM brightness, active LOW)
 static const int PIN_LDR_ADC = 34;  // LDR analog input (ADC1)
 static const int PIN_ONEWIRE = 15;  // DS18B20 data
 static const int PIN_LED = 2;       // On-board LED
+static const int PIN_TONE = 4;      // BUZZER
 
 // Digit select pins (to ULN2803 inputs) for 4 digits (common cathode)
 static const int PIN_DIGIT_0 = 32;  // leftmost
@@ -410,6 +466,7 @@ volatile int g_hour = 0;
 volatile int g_minute = 0;
 volatile int g_second = 0;
 volatile float g_tempC = NAN;
+float g_tempOffset = 0.0f;  // offest temperatury, wprowadzanie korekty w WebUI
 
 volatile bool g_showTemp = false;
 volatile bool g_showBootId = true;
@@ -427,8 +484,11 @@ volatile bool g_otaActive = false;
 // Brightness
 Preferences prefs;
 volatile bool g_autoBrightness = true;
-volatile uint8_t g_brightness = 150;  // 0..255 logical brightness
-volatile bool g_hardwareReady = false;
+volatile uint8_t g_brightness = 128;    // 0..255 logical brightness
+volatile bool g_hardwareReady = false;  // flaga niewykorzystywane w tej wersji
+// Kalibracja czujnika LDR - wartości "fabryczne" dla obudowy typu WOOD, możliowość korekty w WebUI
+int g_rawDark = 3900;
+int g_rawBright = 900;
 
 // WiFi / portal
 WebServer server(80);
@@ -607,6 +667,21 @@ static inline void applyBrightness(uint8_t logical) {
   ledcWrite(PWM_CH, oeDuty);
 }
 
+// --- DEFINICJA RODZAJU OBUDOWY ---
+//  !!! KALIBRACJA PRZENIESIONA DO WEB UI !!!
+//   Calibration points (ADC values)
+//   DARK  → high ADC
+//   BRIGHT → low ADC
+//
+// #ifdef CASE_WOOD
+//   const float RAW_DARK = 3900;
+//   const float RAW_BRIGHT = 900;
+// #else  // Domyślnie lub jeśli wybrano CASE_PLA
+//   const float RAW_DARK = 2500;
+//   const float RAW_BRIGHT = 20;
+// #endif
+// ---------------------------------
+
 uint8_t computeAutoBrightnessFromLDR() {
   // LDR is at the bottom (to GND), 10k at the top (to +3.3V)
   // → dark = high ADC value, bright = low ADC value
@@ -615,24 +690,10 @@ uint8_t computeAutoBrightnessFromLDR() {
   static float ema = 2000;  // Wstępna wartość średniej
   ema = 0.9f * ema + 0.1f * raw;
 
-  // --- !!! DEFINICJA RODZAJU OBUDOWY !!! ---
-  //      Calibration points (ADC values)
-  // DARK  → high ADC
-  // BRIGHT → low ADC
-// --- AUTOMATYCZNA KONFIGURACJA ---
-#ifdef CASE_WOOD
-  const float RAW_DARK = 3900;
-  const float RAW_BRIGHT = 900;
-#else  // Domyślnie lub jeśli wybrano CASE_PLA
-  const float RAW_DARK = 2500;
-  const float RAW_BRIGHT = 20;
-#endif
-  // ---------------------------------
-
   // ZABEZPIECZENIE: jeśli wartości są identyczne, nie dzielimy przez zero
-  if (abs(RAW_DARK - RAW_BRIGHT) < 10) return 128;
+  if (abs(g_rawDark - g_rawBright) < 10) return 128;
 
-  float x = (RAW_DARK - ema) / (RAW_DARK - RAW_BRIGHT);
+  float x = (g_rawDark - ema) / (g_rawDark - g_rawBright);
   if (x < 0) x = 0;
   if (x > 1) x = 1;
 
@@ -713,7 +774,7 @@ void TempTask(void *pv) {
     }
 
     if (!isnan(t) && t > -80.0f) {
-      g_tempC = t;
+      g_tempC = t + g_tempOffset;  // Dodajemy offset
       g_tempValid = true;
     } else {
       Serial.printf("❌ Błąd DS18B20 po %d próbach!\n", maxRetries);
@@ -823,26 +884,41 @@ void saveSettings() {
   prefs.begin("clock", false);
   prefs.putUChar("bright", g_brightness);
   prefs.putBool("autoB", g_autoBrightness);
+  prefs.putFloat("tOffset", g_tempOffset);
+  prefs.putInt("rDark", g_rawDark);
+  prefs.putInt("rBright", g_rawBright);
   prefs.end();
 }
 
 void resetSettings() {
-  const uint8_t DEFAULT_BRIGHT = 150;
+  const uint8_t DEFAULT_BRIGHT = 128;
   const bool DEFAULT_AUTO = true;
+  const float DEFAULT_TEMP_OFFSET = 0.0f;
+  const int DEFAULT_RAW_DARK = 3900;
+  const int DEFAULT_RAW_BRIGHT = 900;
 
   prefs.begin("clock", false);
   prefs.putUChar("bright", DEFAULT_BRIGHT);
   prefs.putBool("autoB", DEFAULT_AUTO);
+  prefs.putFloat("tOffset", DEFAULT_TEMP_OFFSET);
+  prefs.putInt("rDark", DEFAULT_RAW_DARK);
+  prefs.putInt("rBright", DEFAULT_RAW_BRIGHT);
   prefs.end();
 
   g_brightness = DEFAULT_BRIGHT;
   g_autoBrightness = DEFAULT_AUTO;
+  g_tempOffset = DEFAULT_TEMP_OFFSET;
+  g_rawDark = DEFAULT_RAW_DARK;
+  g_rawBright = DEFAULT_RAW_BRIGHT;
 }
 
 void loadSettings() {
   prefs.begin("clock", false);
   g_brightness = prefs.getUChar("bright", 150);
   g_autoBrightness = prefs.getBool("autoB", true);
+  g_tempOffset = prefs.getFloat("tOffset", 0.0f);
+  g_rawDark = prefs.getInt("rDark", 3900);
+  g_rawBright = prefs.getInt("rBright", 900);
   prefs.end();
 }
 
@@ -959,8 +1035,9 @@ void WiFiTask(void *pv) {
     char s[512];
     struct tm ti;
     char dateBuf[32] = "--.--.----";
-    const char *days[] = { "Niedz", "Pon", "Wt", "Sr", "Czw", "Pt", "Sob" };
+    const char *days[] = { "Niedziela", "Poniedziałek", "Wtorek", "Środa", "Czwartek", "Piątek", "Sobota" };
     const char *dayName = "---";
+    int rawLDR = analogRead(PIN_LDR_ADC);  // Pobierz aktualny odczyt z LDR
 
     if (getLocalTime(&ti, 0)) {
       snprintf(dateBuf, sizeof(dateBuf), "%02d.%02d.%04d", ti.tm_mday, ti.tm_mon + 1, ti.tm_year + 1900);
@@ -968,10 +1045,10 @@ void WiFiTask(void *pv) {
     }
 
     int out = snprintf(s, sizeof(s),
-                       "id=%s\nhostname=%s\ntime=%02d:%02d:%02d\ndate=%s\nday=%s\nlastSync=%s\ntempC=%.1f\nd18b20_res=%d\nbrightness=%d\nautoBrightness=%d\nwifi=%s\n",
+                       "id=%s\nhostname=%s\ntime=%02d:%02d:%02d\ndate=%s\nday=%s\nlastSync=%s\ntempC=%.1f\nd18b20_res=%d\ntOff=%.1f\nrDark=%d\nrBright=%d\nrawLDR=%d\nbrightness=%d\nautoBrightness=%d\nwifi=%s\n",
                        g_deviceId.c_str(), g_hostName.c_str(), g_hour, g_minute, g_second, dateBuf, dayName, g_lastSyncTimeStr,
-                       g_tempC, getDS18B20Resolution(), g_brightness, (g_autoBrightness ? 1 : 0),
-                       (WiFi.status() == WL_CONNECTED ? "connected" : "disconnected"));
+                       g_tempC, getDS18B20Resolution(), g_tempOffset, g_rawDark, g_rawBright, rawLDR, g_brightness, (g_autoBrightness ? 1 : 0),
+                       (WiFi.status() == WL_CONNECTED ? "connected" : "not_connected"));
 
     if (WiFi.status() == WL_CONNECTED) {
       snprintf(s + out, sizeof(s) - out, "ip=%s\nrssi=%d\nmdns=http://%s.local/\n",
@@ -995,11 +1072,15 @@ void WiFiTask(void *pv) {
     if (server.hasArg("auto")) {
       g_autoBrightness = (server.arg("auto") == "1");
     }
+    if (server.hasArg("tOff")) g_tempOffset = server.arg("tOff").toFloat();
+    if (server.hasArg("rDark")) g_rawDark = server.arg("rDark").toInt();
+    if (server.hasArg("rBright")) g_rawBright = server.arg("rBright").toInt();
+
     applyBrightness(g_brightness);  // Reaguje od razu, ale nie zapisuje do Flash!
     server.send(200, "text/plain", "OK");
   });
 
-  // --- NOWY ENDPOINT /save (DODAJ GO TUTAJ) ---
+  // --- NOWY ENDPOINT /save ---
   server.on("/save", []() {
     saveSettings();  // Zapisuje do Flash tylko po kliknięciu "Zapisz"
     server.send(200, "text/plain", "Zapisano");
@@ -1072,7 +1153,7 @@ void initBrightnessHardware() {
   analogReadResolution(12);
 
   applyBrightness(g_brightness);
-  // flaga niewykorzystywana w tej wersji ?
+  // flaga niewykorzystywana w tej wersji
   g_hardwareReady = true;  // <--- TUTAJ odblokowujemy sterowanie jasnością
 }
 // -----------------------------------------------------------------------------
@@ -1083,6 +1164,8 @@ void setup() {
 
   pinMode(PIN_LED, OUTPUT);
   digitalWrite(PIN_LED, LOW);
+  pinMode(PIN_TONE, OUTPUT);
+  digitalWrite(PIN_TONE, LOW);
 
   WiFi.setAutoReconnect(false);  // true: Pozwól ESP32 dbać o połączenie - koliduje z AC ; false: nie przeszkadza AutoConnect
   WiFi.persistent(false);        // NIE zapisuj danych WiFi przy każdym połączeniu (oszczędza Flash)
@@ -1114,7 +1197,7 @@ void setup() {
   sensors.begin();
   sensors.setWaitForConversion(false);
 
-  esp_task_wdt_init(10, true);  // 10 sekund timeoutu
+  esp_task_wdt_init(30, true);  // 30 sekund timeoutu (przy 10s i braku zasięgu znanej WiFi wpadał w pętlę restartów; można zwiększyć do 60 sek)
   esp_task_wdt_add(NULL);       // Dodaj główny wątek do monitorowania
 
   displayTimer = timerBegin(0, 80, true);  // 80 MHz / 80 = 1 MHz
