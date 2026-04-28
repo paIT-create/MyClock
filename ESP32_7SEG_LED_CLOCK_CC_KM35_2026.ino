@@ -12,7 +12,7 @@
   - mDNS: esp32-clock-XXXX.local
   - Brightness: OE pin PWM + optional auto brightness from LDR (ADC)
   - Web UI - LDR Calibration and Temperature Offset
-  - Web UI - Alarm handler
+  - Web UI - Alarm handler (weekly schedule)
   
   ✔ ESP32 core 2.0.17  
   ✔ AutoConnect 1.4.2
@@ -41,6 +41,8 @@
 
 // Watchdog Timer (WDT)
 #include <esp_task_wdt.h>
+
+#define HAS_BUZZER true  // Zmień na false dla wersji bez głośnika
 
 // --- KOD HTML W PAMIĘCI FLASH ---
 const char CONFIG_HTML[] PROGMEM = R"rawliteral(
@@ -157,6 +159,7 @@ let debounceTimer; // Timer dla suwaka jasności
 let localTime = new Date();
 let lastSyncTime = 0;
 let isEditing = false; // Flaga blokująca auto-odświeżanie pól podczas wpisywania
+let currentAlarmDays = 127; // Domyślnie wszystkie dni
 
 // Funkcja Debounce: wysyła żądanie dopiero 150ms po zakończeniu ruchu suwakiem
 function setBright(v) {
@@ -253,6 +256,24 @@ function stopAlarm() {
   fetch('/set?stopAlarm=1');
 }
 
+function toggleDay(day) {
+  currentAlarmDays ^= (1 << day); // Przełącz bit (XOR)
+  updateAlarm(); // Wyślij aktualizację do ESP
+}
+
+function updateAlarm() {
+  let t = document.getElementById('alTime').value;
+  let on = document.getElementById('alActive').checked ? 1 : 0;
+  let mel = document.getElementById('alMel').value;
+  // Wysyłamy maskę bitową dni tygodnia
+  fetch(`/set?alTime=${t}&alOn=${on}&alDays=${currentAlarmDays}&alMel=${mel}`);
+}
+
+function updateMute() {
+  let m = document.getElementById('mMute').checked ? 1 : 0;
+  fetch(`/set?mMute=${m}`);
+}
+
 function loadStatus(){
   // Dodajemy timestamp, aby zapobiec cachowaniu odpowiedzi przez przeglądarkę
   fetch('/status?t=' + Date.now()).then(r=>r.text()).then(t=>{
@@ -278,12 +299,27 @@ function loadStatus(){
       }
 
       if(l.startsWith("date=")){
-        let d = l.substring(5);
-        let dayLine = lines.find(line => line.startsWith("day="));
-        let dayName = dayLine ? dayLine.substring(4) : "";
-        // Aktualizujemy tylko tekst, aby nie nadpisać ikonki spanem
-        document.getElementById('dateText').textContent = dayName + ", " + d;
+        let d = l.substring(5).trim();
+        // AKTUALIZUJ TYLKO JEŚLI DANE NIE SĄ PUSTE LUB KRESKAMI
+        if(d.length > 5 && d !== "--.--.----") {
+          let dayLine = lines.find(line => line.startsWith("day="));
+          let dayName = dayLine ? dayLine.substring(4) : "";
+          document.getElementById('dateText').textContent = dayName + ", " + d;
+        }
       }
+
+      if(l.startsWith("alDays=")){
+        currentAlarmDays = parseInt(l.substring(7));
+        for(let i=0; i<7; i++) {
+          let btn = document.getElementById('day-'+i);
+          if(btn) { // Sprawdzenie czy przycisk istnieje (dla wersji bez buzzera)
+            if(currentAlarmDays & (1 << i)) btn.classList.add('active');
+            else btn.classList.remove('active');
+          }
+        }
+      }
+      
+      if(l.startsWith("mMute=")) document.getElementById('mMute').checked = (l.substring(6) === "1");
 
       if(l.startsWith("lastSync=")){
         document.getElementById('lastSync').textContent = "Synchronizacja: " + l.substring(9);
@@ -349,6 +385,10 @@ function loadStatus(){
       if(l.startsWith("alActive=")) {
         document.getElementById('alActive').checked = (l.substring(9) === "1");
       }
+      if(l.startsWith("hasBuzzer=")){
+        let hasBuzzer = (l.substring(10) === "1");
+        document.getElementById('alarmSection').style.display = hasBuzzer ? "block" : "none";
+      }
 
     });
     firstStatus = false;
@@ -378,19 +418,59 @@ window.onload = loadStatus;
   <div id="lastSync" style="font-size:16px; color:#555; margin-top:10px;">Ostatnia synch: --:--</div>
 </div>
 
-<div style="border-top:1px solid #333; margin-top:20px; padding-top:15px;">
-  <label>⏰ Budzik</label>
-  <input type="time" id="alTime" onfocus="setEdit(true)" onblur="setEdit(false)" onchange="updateAlarm()" style="width:100%; background:#111; color:#fff; border:1px solid #444; padding:8px; border-radius:8px;">
-  <label><input type="checkbox" id="alActive" onchange="updateAlarm()"> Budzik włączony</label>
-  <button id="stopAl" class="btn reset" style="display:none; background:#ff4444; color:#fff;" onclick="stopAlarm()">WYŁĄCZ ALARM</button>
+<div id="alarmSection" style="display:none;">
+  <!-- Nagłówek Budzika z przełącznikiem w jednej linii -->
+  <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid #333; margin-top:20px; padding-top:15px;">
+    <label style="margin:0; color:#ff9f9f; text-shadow:0 0 8px #ff4444;">⏰ Budzik</label>
+    <div style="display:flex; align-items:center; gap:8px;">
+      <input type="checkbox" id="alActive" onchange="updateAlarm()" style="margin:0; cursor:pointer;">
+      <label for="alActive" style="margin:0; font-size:14px; color:#ff9f9f; text-shadow:0 0 6px #ff4444; cursor:pointer;">Włączony</label>
+    </div>
+  </div>
+  
+  <!-- Wybór godziny -->
+  <input type="time" id="alTime" onfocus="setEdit(true)" onblur="setEdit(false)" onchange="updateAlarm()" 
+         style="width:100%; background:#05060a; color:#fff; border:1px solid #444; padding:10px; border-radius:10px; font-size:18px; margin-top:10px;">
+
+  <!-- Dni tygodnia -->
+  <div style="display:flex; justify-content:space-between; margin:15px 0;">
+    <!-- Dni tygodnia jako małe neonowe kafelki -->
+    <style>
+      .day-btn { font-size:10px; padding:5px; border:1px solid #444; border-radius:5px; cursor:pointer; background:#111; color:#555; transition:0.3s; }
+      .day-btn.active { border-color:#6ab8ff; color:#6ab8ff; box-shadow:0 0 8px #0070ff; }
+    </style>
+    <div id="day-1" class="day-btn" onclick="toggleDay(1)">Pn</div>
+    <div id="day-2" class="day-btn" onclick="toggleDay(2)">Wt</div>
+    <div id="day-3" class="day-btn" onclick="toggleDay(3)">Śr</div>
+    <div id="day-4" class="day-btn" onclick="toggleDay(4)">Cz</div>
+    <div id="day-5" class="day-btn" onclick="toggleDay(5)">Pt</div>
+    <div id="day-6" class="day-btn" onclick="toggleDay(6)">So</div>
+    <div id="day-0" class="day-btn" onclick="toggleDay(0)" style="color:#ff9f9f;">Nd</div>
+  </div>
+
+  <select id="alMel" onchange="updateAlarm()" style="width:100%; margin-top:10px; background:#111; color:#fff; border:1px solid #444; padding:8px; border-radius:8px;">
+    <option value="0">Melodia: Klasyczna</option>
+    <option value="1">Melodia: Radosna</option>
+    <option value="2">Melodia: Syrena</option>
+  </select>
+
+  <button id="stopAl" class="btn reset" style="display:none; background:#ff4444; color:#fff; margin-top:15px;" onclick="stopAlarm()">WYŁĄCZ ALARM</button>
+  
+  <div style="margin-top:15px; border-top:1px solid #222; padding-top:10px;">
+    <input type="checkbox" id="mMute" onchange="updateMute()">
+    <label for="mMute" style="display:inline; color:#ff4444;">🔇 Master Mute (Wycisz wszystko)</label>
+  </div>
 </div>
 
-<label>Jasność</label>
+<div style="display:flex; justify-content:space-between; align-items:center; margin-top:25px;">
+  <label style="margin:0;">🔆 Jasność</label>
+  <div style="display:flex; align-items:center; gap:8px;">
+    <input type="checkbox" id="auto" onchange="setAuto()" style="margin:0; cursor:pointer;">
+    <label for="auto" style="margin:0; font-size:14px; color:#9fc9ff; text-shadow:0 0 6px #0044aa; cursor:pointer;">Auto</label>
+  </div>
+</div>
 <input type="range" id="bright" min="0" max="255" oninput="setBright(this.value)">
-<div class="value" id="brightVal"></div>
-
-<label>Auto jasność</label>
-<input type="checkbox" id="auto" onchange="setAuto()">
+<div class="value" id="brightVal">Aktualnie: --</div>
 
 <button class="btn save" onclick="save()">💾 Zapisz</button>
 <details style="margin-top:10px; text-align:left; color:#6ab8ff;">
@@ -402,7 +482,7 @@ window.onload = loadStatus;
            style="width:90%; background:#05060a; color:#ffdd88; border:1px solid #333; padding:8px; margin:5px 0; border-radius:6px;">
     
     <div style="margin: 10px 0; padding: 8px; background: #1a1d26; border-radius: 6px; text-align: center; border: 1px solid #0070ff22;">
-      <span style="font-size: 11px; color: #888; text-transform: uppercase;">Aktualny odczyt sensora:</span>
+      <span style="font-size: 11px; color: #888; text-transform: uppercase;">Aktualny odczyt sensora LDR:</span>
       <div id="liveLDR" style="font-size: 20px; color: #00ffaa; font-weight: bold; text-shadow: 0 0 10px #00ffaa66;">----</div>
     </div>
     <label style="font-size:13px; display:block; margin-top:10px;">LDR Dark (Raw ADC)</label>
@@ -710,11 +790,13 @@ void initBuzzer() {
   ledcWrite(2, 0);
 }
 void beep(int freq = 2000, int duration = 100) {
+#if HAS_BUZZER
   if (g_masterMute) return;  // Jeśli wyciszono, funkcja nic nie robi
   ledcWriteTone(2, freq);
   vTaskDelay(pdMS_TO_TICKS(duration));
   ledcWriteTone(2, 0);
   ledcWrite(2, 0);  // Po użyciu tonu warto wymusić powrót do 0, aby nie "brzęczało"
+#endif
 }
 // -----------------------------------------------------------------------------
 // Brightness control
@@ -850,26 +932,6 @@ void TempTask(void *pv) {
 // -----------------------------------------------------------------------------
 // AlarmTask
 // -----------------------------------------------------------------------------
-// void AlarmTask(void *pv) {
-//   for (;;) {
-//     // Sprawdzanie co sekundę, czy czas alarmu nadszedł
-//     if (g_alarmActive && g_hour == g_alarmH && g_minute == g_alarmM && g_second == 0) {
-//       g_isAlarming = true;
-//       Serial.println("⏰ ALARM URUCHOMIONY!");
-
-//       // Graj przez 1 minutę lub do wyłączenia flagi g_isAlarming
-//       for (int i = 0; i < 60 && g_isAlarming; i++) {
-//         for (int j = 0; j < 3; j++) {  // Potrójne "pi-pi-pi"
-//           beep(2500, 100);
-//           vTaskDelay(pdMS_TO_TICKS(100));
-//         }
-//         vTaskDelay(pdMS_TO_TICKS(700));
-//       }
-//       g_isAlarming = false;
-//     }
-//     vTaskDelay(pdMS_TO_TICKS(1000));
-//   }
-// }
 void AlarmTask(void *pv) {
   for (;;) {
     struct tm ti;
@@ -1142,7 +1204,7 @@ void timeSyncCallback(struct timeval *tv) {
   Serial.print("Aktualny czas: ");
   Serial.println(&ti, "%A, %B %d %Y %H:%M:%S");
   Serial.println("----------------------------------------------");
-  beep(3500, 25);
+  beep(6500, 25);
 }
 // -----------------------------------------------------------------------------
 // WiFiTask (AutoConnect + UI + status)
@@ -1222,6 +1284,9 @@ void WiFiTask(void *pv) {
     // Blok 4: Budzik
     out += snprintf(s + out, sizeof(s) - out, "isAlarming=%d\nalTime=%02d:%02d\nalActive=%d\n",
                     (g_isAlarming ? 1 : 0), g_alarmH, g_alarmM, (g_alarmActive ? 1 : 0));
+    out += snprintf(s + out, sizeof(s) - out, "alDays=%d\nalMel=%d\nmMute=%d\n",
+                    g_alarmDays, g_alarmMelody, (g_masterMute ? 1 : 0));
+    out += snprintf(s + out, sizeof(s) - out, "hasBuzzer=%d\n", HAS_BUZZER ? 1 : 0);
 
     // Blok 5: Sieć
     out += snprintf(s + out, sizeof(s) - out, "wifi=%s\n", (WiFi.status() == WL_CONNECTED ? "connected" : "not_connected"));
@@ -1282,6 +1347,10 @@ void WiFiTask(void *pv) {
     if (server.hasArg("alOn")) g_alarmActive = (server.arg("alOn") == "1");
     if (server.hasArg("stopAlarm")) g_isAlarming = false;
 
+    if (server.hasArg("alDays")) g_alarmDays = server.arg("alDays").toInt();
+    if (server.hasArg("alMel")) g_alarmMelody = server.arg("alMel").toInt();
+    if (server.hasArg("mMute")) g_masterMute = (server.arg("mMute") == "1");
+
     server.send(200, "text/plain", "OK");
   });
 
@@ -1329,7 +1398,6 @@ void WiFiTask(void *pv) {
   bool firstSyncDone = false;
 
   for (;;) {
-
     // Synchronizuj czas tylko jeśli mamy WiFi i jeszcze tego nie zrobiliśmy
     if (!firstSyncDone && WiFi.status() == WL_CONNECTED) {
       Serial.println("WiFi połączone, uruchamiam NTP...");
@@ -1350,7 +1418,6 @@ void WiFiTask(void *pv) {
     }
   }
 }
-
 // -----------------------------------------------------------------------------
 // Hardware init
 // -----------------------------------------------------------------------------
@@ -1390,8 +1457,6 @@ void setup() {
   pinMode(PIN_LED, OUTPUT);
   digitalWrite(PIN_LED, LOW);
 
-  initBuzzer();
-
   WiFi.setAutoReconnect(false);  // true: Pozwól ESP32 dbać o połączenie - koliduje z AC ; false: nie przeszkadza AutoConnect
   WiFi.persistent(false);        // NIE zapisuj danych WiFi przy każdym połączeniu (oszczędza Flash)
 
@@ -1430,12 +1495,16 @@ void setup() {
   timerAlarmWrite(displayTimer, FRAME_US, true);
   timerAlarmEnable(displayTimer);
 
+#if HAS_BUZZER
+  initBuzzer();
+  xTaskCreate(AlarmTask, "Alarm", 2048, NULL, 1, NULL);
+#endif
+
   xTaskCreatePinnedToCore(TimeTask, "Time", 4096, nullptr, 2, nullptr, 1);
   xTaskCreatePinnedToCore(TempTask, "Temp", 4096, nullptr, 1, nullptr, 1);
   xTaskCreatePinnedToCore(LogicTask, "Logic", 4096, nullptr, 1, nullptr, 1);
   xTaskCreatePinnedToCore(BrightnessTask, "Bright", 2048, nullptr, 1, nullptr, 1);
   xTaskCreatePinnedToCore(WiFiTask, "WiFi", 8192, nullptr, 1, nullptr, 0);  // przeniesienie obsługi WiFi na dedykowany rdzeń 0
-  xTaskCreate(AlarmTask, "Alarm", 2048, NULL, 1, NULL);
 }
 
 void loop() {
