@@ -11,7 +11,8 @@
   - Config UI: /config
   - mDNS: esp32-clock-XXXX.local
   - Brightness: OE pin PWM + optional auto brightness from LDR (ADC)
-  - Web UI
+  - Web UI - LDR Calibration and Temperature Offset
+  - Web UI - Alarm handler
   
   ✔ ESP32 core 2.0.17  
   ✔ AutoConnect 1.4.2
@@ -22,6 +23,7 @@
 // WiFi / Portal / OTA
 #include <WiFi.h>
 #include <WebServer.h>
+#include <DNSServer.h>
 #include <AutoConnect.h>
 #include <AutoConnectOTA.h>
 #include <ESPmDNS.h>
@@ -241,6 +243,16 @@ function updateTemp(){
   document.getElementById('bigTemp').textContent = temp + " °C";
 }
 
+function updateAlarm() {
+  let t = document.getElementById('alTime').value;
+  let on = document.getElementById('alActive').checked ? 1 : 0;
+  fetch(`/set?alTime=${t}&alOn=${on}`);
+}
+
+function stopAlarm() {
+  fetch('/set?stopAlarm=1');
+}
+
 function loadStatus(){
   // Dodajemy timestamp, aby zapobiec cachowaniu odpowiedzi przez przeglądarkę
   fetch('/status?t=' + Date.now()).then(r=>r.text()).then(t=>{
@@ -323,6 +335,21 @@ function loadStatus(){
         }
       }
 
+      // Obsługa Alarmu
+      if(l.startsWith("isAlarming=")){
+        let isAlarming = (l.substring(11) === "1");
+        // Jeśli alarm gra, pokazujemy przycisk STOP, w przeciwnym razie ukrywamy
+        document.getElementById('stopAl').style.display = isAlarming ? "block" : "none";
+      }
+      if(l.startsWith("alTime=")) {
+        // Aktualizujemy pole czasu w panelu tylko raz (przy ładowaniu) 
+        // lub gdy użytkownik nie edytuje właśnie pola
+        if (!isEditing) document.getElementById('alTime').value = l.substring(7);
+      }
+      if(l.startsWith("alActive=")) {
+        document.getElementById('alActive').checked = (l.substring(9) === "1");
+      }
+
     });
     firstStatus = false;
   }).catch(err => console.log("Status offline"));
@@ -349,6 +376,13 @@ window.onload = loadStatus;
   <div id="bigTemp" class="bigTemp">--.- °C</div>
   <div id="bigDate" class="bigDate"><span class="calendar-icon">📅</span><span id="dateText">-- --- ----</span></div>
   <div id="lastSync" style="font-size:16px; color:#555; margin-top:10px;">Ostatnia synch: --:--</div>
+</div>
+
+<div style="border-top:1px solid #333; margin-top:20px; padding-top:15px;">
+  <label>⏰ Budzik</label>
+  <input type="time" id="alTime" onfocus="setEdit(true)" onblur="setEdit(false)" onchange="updateAlarm()" style="width:100%; background:#111; color:#fff; border:1px solid #444; padding:8px; border-radius:8px;">
+  <label><input type="checkbox" id="alActive" onchange="updateAlarm()"> Budzik włączony</label>
+  <button id="stopAl" class="btn reset" style="display:none; background:#ff4444; color:#fff;" onclick="stopAlarm()">WYŁĄCZ ALARM</button>
 </div>
 
 <label>Jasność</label>
@@ -411,7 +445,8 @@ static const int PIN_595_OE = 27;   // OE (PWM brightness, active LOW)
 static const int PIN_LDR_ADC = 34;  // LDR analog input (ADC1)
 static const int PIN_ONEWIRE = 15;  // DS18B20 data
 static const int PIN_LED = 2;       // On-board LED
-static const int PIN_TONE = 4;      // BUZZER
+static const int PIN_BUZZER = 4;    // BUZZER
+static const int BUZZER_CH = 1;     // Kanał PWM 1 (0 mamy dla jasności)
 
 // Digit select pins (to ULN2803 inputs) for 4 digits (common cathode)
 static const int PIN_DIGIT_0 = 32;  // leftmost
@@ -490,11 +525,13 @@ volatile bool g_hardwareReady = false;  // flaga niewykorzystywane w tej wersji
 int g_rawDark = 3900;
 int g_rawBright = 900;
 
-// WiFi / portal
+// WiFi / portal / DNS
 WebServer server(80);
 AutoConnect portal(server);
 AutoConnectConfig portalConfig;
 AutoConnectOTA ota;
+DNSServer dnsServer;
+const byte DNS_PORT = 53;
 
 String g_hostName;
 String g_deviceId;
@@ -503,6 +540,14 @@ char id[5] = { 0 };  // 4 hex + '\0'
 // DS18B20
 OneWire oneWire(PIN_ONEWIRE);
 DallasTemperature sensors(&oneWire);
+
+// ALARM
+int g_alarmH = 7, g_alarmM = 0;
+bool g_alarmActive = false;
+bool g_masterMute = false;           // Całkowite wyciszenie
+int g_alarmMelody = 0;               // Wybór melodii (0 - klasyk, 1 - radosna, 2 - syrena
+volatile bool g_isAlarming = false;  // Flaga, czy budzik aktualnie gra
+uint8_t g_alarmDays = 127;           // Bity: 0-Niedz, 1-Pon... 6-Sob. 127 = wszystkie dni.
 
 // -----------------------------------------------------------------------------
 // 74HC595 helpers
@@ -546,7 +591,6 @@ hw_timer_t *displayTimer = nullptr;
 portMUX_TYPE timerMux = portMUX_INITIALIZER_UNLOCKED;
 volatile uint8_t currentDigit = 0;
 
-//static const uint16_t DIGIT_ON_US = 350;
 static const uint16_t FRAME_US = 4000;
 
 void IRAM_ATTR onDisplayTimer() {
@@ -654,6 +698,23 @@ int getDS18B20Resolution() {
     return -1;
   }
   return sensors.getResolution(addr);
+}
+// -----------------------------------------------------------------------------
+// BUZZER control
+// -----------------------------------------------------------------------------
+void initBuzzer() {
+  // Jasność używa kanału 0. Spróbujmy użyć kanału 2,
+  // który na pewno należy do innego "bloku" (Timer 1)
+  ledcSetup(2, 2000, 8);
+  ledcAttachPin(PIN_BUZZER, 2);
+  ledcWrite(2, 0);
+}
+void beep(int freq = 2000, int duration = 100) {
+  if (g_masterMute) return;  // Jeśli wyciszono, funkcja nic nie robi
+  ledcWriteTone(2, freq);
+  vTaskDelay(pdMS_TO_TICKS(duration));
+  ledcWriteTone(2, 0);
+  ledcWrite(2, 0);  // Po użyciu tonu warto wymusić powrót do 0, aby nie "brzęczało"
 }
 // -----------------------------------------------------------------------------
 // Brightness control
@@ -787,6 +848,73 @@ void TempTask(void *pv) {
   }
 }
 // -----------------------------------------------------------------------------
+// AlarmTask
+// -----------------------------------------------------------------------------
+// void AlarmTask(void *pv) {
+//   for (;;) {
+//     // Sprawdzanie co sekundę, czy czas alarmu nadszedł
+//     if (g_alarmActive && g_hour == g_alarmH && g_minute == g_alarmM && g_second == 0) {
+//       g_isAlarming = true;
+//       Serial.println("⏰ ALARM URUCHOMIONY!");
+
+//       // Graj przez 1 minutę lub do wyłączenia flagi g_isAlarming
+//       for (int i = 0; i < 60 && g_isAlarming; i++) {
+//         for (int j = 0; j < 3; j++) {  // Potrójne "pi-pi-pi"
+//           beep(2500, 100);
+//           vTaskDelay(pdMS_TO_TICKS(100));
+//         }
+//         vTaskDelay(pdMS_TO_TICKS(700));
+//       }
+//       g_isAlarming = false;
+//     }
+//     vTaskDelay(pdMS_TO_TICKS(1000));
+//   }
+// }
+void AlarmTask(void *pv) {
+  for (;;) {
+    struct tm ti;
+    if (g_alarmActive && getLocalTime(&ti, 0)) {
+      // Sprawdzamy czy dzisiejszy dzień (ti.tm_wday) jest zaznaczony w masce bitowej
+      bool dayMatch = (g_alarmDays & (1 << ti.tm_wday));
+
+      if (dayMatch && g_hour == g_alarmH && g_minute == g_alarmM && g_second == 0) {
+        g_isAlarming = true;
+        Serial.printf("⏰ ALARM! Melodia: %d\n", g_alarmMelody);
+
+        for (int i = 0; i < 60 && g_isAlarming; i++) {
+          if (g_masterMute) {
+            g_isAlarming = false;
+            break;
+          }  // Master Mute przerywa granie
+
+          switch (g_alarmMelody) {
+            case 1:  // Radosna (narastająca)
+              beep(1500, 100);
+              beep(2000, 100);
+              beep(2500, 100);
+              vTaskDelay(pdMS_TO_TICKS(700));
+              break;
+            case 2:  // Syrena (wysoki/niski)
+              beep(3000, 400);
+              beep(1500, 400);
+              vTaskDelay(pdMS_TO_TICKS(200));
+              break;
+            default:  // 0 - Klasyk pi-pi-pi
+              for (int j = 0; j < 3; j++) {
+                beep(2500, 100);
+                vTaskDelay(pdMS_TO_TICKS(100));
+              }
+              vTaskDelay(pdMS_TO_TICKS(700));
+              break;
+          }
+        }
+        g_isAlarming = false;
+      }
+    }
+    vTaskDelay(pdMS_TO_TICKS(1000));
+  }
+}
+// -----------------------------------------------------------------------------
 // LogicTask
 // -----------------------------------------------------------------------------
 void LogicTask(void *pv) {
@@ -887,6 +1015,12 @@ void saveSettings() {
   prefs.putFloat("tOffset", g_tempOffset);
   prefs.putInt("rDark", g_rawDark);
   prefs.putInt("rBright", g_rawBright);
+  prefs.putInt("alH", g_alarmH);
+  prefs.putInt("alM", g_alarmM);
+  prefs.putBool("alOn", g_alarmActive);
+  prefs.putBool("mMute", g_masterMute);
+  prefs.putInt("alMel", g_alarmMelody);
+  prefs.putUChar("alDays", g_alarmDays);
   prefs.end();
 }
 
@@ -896,6 +1030,12 @@ void resetSettings() {
   const float DEFAULT_TEMP_OFFSET = 0.0f;
   const int DEFAULT_RAW_DARK = 3900;
   const int DEFAULT_RAW_BRIGHT = 900;
+  const int DEFAULT_AL_H = 7;
+  const int DEFAULT_AL_M = 0;
+  const bool DEFAULT_AL_ON = false;
+  const bool DEFAULT_M_MUTE = false;
+  const int DEFAULT_AL_MELODY = 0;
+  const uint8_t DEFAULT_AL_DAYS = 127;
 
   prefs.begin("clock", false);
   prefs.putUChar("bright", DEFAULT_BRIGHT);
@@ -903,6 +1043,12 @@ void resetSettings() {
   prefs.putFloat("tOffset", DEFAULT_TEMP_OFFSET);
   prefs.putInt("rDark", DEFAULT_RAW_DARK);
   prefs.putInt("rBright", DEFAULT_RAW_BRIGHT);
+  prefs.putInt("alH", DEFAULT_AL_H);
+  prefs.putInt("alM", DEFAULT_AL_M);
+  prefs.putBool("alOn", DEFAULT_AL_ON);
+  prefs.putBool("mMute", DEFAULT_M_MUTE);
+  prefs.putInt("alMel", DEFAULT_AL_MELODY);
+  prefs.putUChar("alDays", DEFAULT_AL_DAYS);
   prefs.end();
 
   g_brightness = DEFAULT_BRIGHT;
@@ -910,6 +1056,12 @@ void resetSettings() {
   g_tempOffset = DEFAULT_TEMP_OFFSET;
   g_rawDark = DEFAULT_RAW_DARK;
   g_rawBright = DEFAULT_RAW_BRIGHT;
+  g_alarmH = DEFAULT_AL_H;
+  g_alarmM = DEFAULT_AL_M;
+  g_alarmActive = DEFAULT_AL_ON;
+  g_masterMute = DEFAULT_M_MUTE;
+  g_alarmMelody = DEFAULT_AL_MELODY;
+  g_alarmDays = DEFAULT_AL_DAYS;
 }
 
 void loadSettings() {
@@ -919,6 +1071,12 @@ void loadSettings() {
   g_tempOffset = prefs.getFloat("tOffset", 0.0f);
   g_rawDark = prefs.getInt("rDark", 3900);
   g_rawBright = prefs.getInt("rBright", 900);
+  g_alarmH = prefs.getInt("alH", 7);
+  g_alarmM = prefs.getInt("alM", 0);
+  g_alarmActive = prefs.getBool("alOn", false);
+  g_masterMute = prefs.getBool("mMute", false);
+  g_alarmMelody = prefs.getInt("alMel", 0);
+  g_alarmDays = prefs.getUChar("alDays", 127);
   prefs.end();
 }
 
@@ -984,6 +1142,7 @@ void timeSyncCallback(struct timeval *tv) {
   Serial.print("Aktualny czas: ");
   Serial.println(&ti, "%A, %B %d %Y %H:%M:%S");
   Serial.println("----------------------------------------------");
+  beep(3500, 25);
 }
 // -----------------------------------------------------------------------------
 // WiFiTask (AutoConnect + UI + status)
@@ -1005,6 +1164,9 @@ void WiFiTask(void *pv) {
   portalConfig.psk = "Al@m@kot@";
   portalConfig.hostName = g_hostName.c_str();
   portalConfig.menuItems |= AC_MENUITEM_DELETESSID;
+  portalConfig.boundaryOffset = 64;  // Zwiększa stabilność bufora przy dużym HTML
+  portalConfig.immediateStart = false;
+  portalConfig.homeUri = "/config";  // Wymusza stronę główną portalu
   portalConfig.bootUri = AC_ONBOOTURI_HOME;
   portal.config(portalConfig);
 
@@ -1032,35 +1194,69 @@ void WiFiTask(void *pv) {
 
   // /status endpoint
   server.on("/status", []() {
-    char s[512];
+    char s[1024];
+    int out = 0;
     struct tm ti;
     char dateBuf[32] = "--.--.----";
     const char *days[] = { "Niedziela", "Poniedziałek", "Wtorek", "Środa", "Czwartek", "Piątek", "Sobota" };
     const char *dayName = "---";
-    int rawLDR = analogRead(PIN_LDR_ADC);  // Pobierz aktualny odczyt z LDR
 
     if (getLocalTime(&ti, 0)) {
       snprintf(dateBuf, sizeof(dateBuf), "%02d.%02d.%04d", ti.tm_mday, ti.tm_mon + 1, ti.tm_year + 1900);
       dayName = days[ti.tm_wday];
     }
 
-    int out = snprintf(s, sizeof(s),
-                       "id=%s\nhostname=%s\ntime=%02d:%02d:%02d\ndate=%s\nday=%s\nlastSync=%s\ntempC=%.1f\nd18b20_res=%d\ntOff=%.1f\nrDark=%d\nrBright=%d\nrawLDR=%d\nbrightness=%d\nautoBrightness=%d\nwifi=%s\n",
-                       g_deviceId.c_str(), g_hostName.c_str(), g_hour, g_minute, g_second, dateBuf, dayName, g_lastSyncTimeStr,
-                       g_tempC, getDS18B20Resolution(), g_tempOffset, g_rawDark, g_rawBright, rawLDR, g_brightness, (g_autoBrightness ? 1 : 0),
-                       (WiFi.status() == WL_CONNECTED ? "connected" : "not_connected"));
+    // Blok 1: Tożsamość i czas
+    out += snprintf(s + out, sizeof(s) - out, "id=%s\nhostname=%s\ntime=%02d:%02d:%02d\ndate=%s\nday=%s\n",
+                    g_deviceId.c_str(), g_hostName.c_str(), g_hour, g_minute, g_second, dateBuf, dayName);
+
+    // Blok 2: NTP i Temperatura
+    out += snprintf(s + out, sizeof(s) - out, "lastSync=%s\ntempC=%.1f\nd18b20_res=%d\ntOff=%.1f\n",
+                    g_lastSyncTimeStr, g_tempC, getDS18B20Resolution(), g_tempOffset);
+
+    // Blok 3: LDR i Jasność
+    int rawLDR = analogRead(PIN_LDR_ADC);
+    out += snprintf(s + out, sizeof(s) - out, "rDark=%d\nrBright=%d\nrawLDR=%d\nbrightness=%d\nautoBrightness=%d\n",
+                    g_rawDark, g_rawBright, rawLDR, g_brightness, (g_autoBrightness ? 1 : 0));
+
+    // Blok 4: Budzik
+    out += snprintf(s + out, sizeof(s) - out, "isAlarming=%d\nalTime=%02d:%02d\nalActive=%d\n",
+                    (g_isAlarming ? 1 : 0), g_alarmH, g_alarmM, (g_alarmActive ? 1 : 0));
+
+    // Blok 5: Sieć
+    out += snprintf(s + out, sizeof(s) - out, "wifi=%s\n", (WiFi.status() == WL_CONNECTED ? "connected" : "not_connected"));
 
     if (WiFi.status() == WL_CONNECTED) {
-      snprintf(s + out, sizeof(s) - out, "ip=%s\nrssi=%d\nmdns=http://%s.local/\n",
-               WiFi.localIP().toString().c_str(), WiFi.RSSI(), g_hostName.c_str());
+      out += snprintf(s + out, sizeof(s) - out, "ip=%s\nrssi=%d\nmdns=http://%s.local/\n",
+                      WiFi.localIP().toString().c_str(), WiFi.RSSI(), g_hostName.c_str());
     }
+
     server.send(200, "text/plain", s);
   });
 
   // /config UI
+  // server.on("/config", HTTP_GET, []() {
+  //   // Flag_P mówi serwerowi, że tablica CONFIG_HTML znajduje się w PROGMEM
+  //   server.send_P(200, "text/html", CONFIG_HTML);
+  // });
+  // /config UI w wersji wysyłającej dane w porcjach po 1KB
   server.on("/config", HTTP_GET, []() {
-    // Flag_P mówi serwerowi, że tablica CONFIG_HTML znajduje się w PROGMEM
-    server.send_P(200, "text/html", CONFIG_HTML);
+    server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+    server.send(200, "text/html", "");  // Wyślij nagłówek
+
+    const char *ptr = CONFIG_HTML;
+    size_t fullLen = strlen_P(CONFIG_HTML);
+    size_t sentLen = 0;
+    const size_t chunkSize = 1024;  // Porcje po 1KB
+
+    while (sentLen < fullLen) {
+      size_t currentChunk = (fullLen - sentLen > chunkSize) ? chunkSize : (fullLen - sentLen);
+      server.sendContent_P(ptr + sentLen, currentChunk);
+      sentLen += currentChunk;
+      // Bardzo ważne: oddaj na chwilę procesor systemowi WiFi
+      vTaskDelay(pdMS_TO_TICKS(1));
+    }
+    server.sendContent("");  // Zakończ transmisję
   });
 
   // /set endpoint
@@ -1077,6 +1273,15 @@ void WiFiTask(void *pv) {
     if (server.hasArg("rBright")) g_rawBright = server.arg("rBright").toInt();
 
     applyBrightness(g_brightness);  // Reaguje od razu, ale nie zapisuje do Flash!
+
+    if (server.hasArg("alTime")) {
+      String t = server.arg("alTime");
+      g_alarmH = t.substring(0, 2).toInt();
+      g_alarmM = t.substring(3, 5).toInt();
+    }
+    if (server.hasArg("alOn")) g_alarmActive = (server.arg("alOn") == "1");
+    if (server.hasArg("stopAlarm")) g_isAlarming = false;
+
     server.send(200, "text/plain", "OK");
   });
 
@@ -1102,8 +1307,20 @@ void WiFiTask(void *pv) {
                 "reboot", 2048, NULL, 5, NULL);
   });
 
+  server.onNotFound([]() {
+    // Jeśli ktoś zapyta o cokolwiek innego (np. test internetu),
+    // przekieruj go na naszą stronę konfiguracji
+    server.sendHeader("Location", "/config", true);
+    server.send(302, "text/plain", "");
+  });
+
   ota.attach(portal);
   portal.begin();
+  // START DNS SERVER
+  vTaskDelay(pdMS_TO_TICKS(500));  // Daj mu pół sekundy na wstanie interfejsu AP
+  dnsServer.start(DNS_PORT, "*", WiFi.softAPIP());
+  Serial.print("DNS Server started on IP: ");
+  Serial.println(WiFi.softAPIP());
 
   if (MDNS.begin(g_hostName.c_str())) {
     MDNS.addService("http", "tcp", 80);
@@ -1112,7 +1329,6 @@ void WiFiTask(void *pv) {
   bool firstSyncDone = false;
 
   for (;;) {
-    portal.handleClient();
 
     // Synchronizuj czas tylko jeśli mamy WiFi i jeszcze tego nie zrobiliśmy
     if (!firstSyncDone && WiFi.status() == WL_CONNECTED) {
@@ -1122,7 +1338,16 @@ void WiFiTask(void *pv) {
     }
 
     wifiWatchdog();
-    vTaskDelay(pdMS_TO_TICKS(50));
+
+    if (WiFi.getMode() & WIFI_AP) {
+      // dnsServer potrzebuje jak najczęstszego wywoływania processNextRequest
+      dnsServer.processNextRequest();
+      portal.handleClient();
+      vTaskDelay(1);  // Minimalny "oddech" dla systemu
+    } else {
+      portal.handleClient();
+      vTaskDelay(pdMS_TO_TICKS(50));
+    }
   }
 }
 
@@ -1164,8 +1389,8 @@ void setup() {
 
   pinMode(PIN_LED, OUTPUT);
   digitalWrite(PIN_LED, LOW);
-  pinMode(PIN_TONE, OUTPUT);
-  digitalWrite(PIN_TONE, LOW);
+
+  initBuzzer();
 
   WiFi.setAutoReconnect(false);  // true: Pozwól ESP32 dbać o połączenie - koliduje z AC ; false: nie przeszkadza AutoConnect
   WiFi.persistent(false);        // NIE zapisuj danych WiFi przy każdym połączeniu (oszczędza Flash)
@@ -1210,6 +1435,7 @@ void setup() {
   xTaskCreatePinnedToCore(LogicTask, "Logic", 4096, nullptr, 1, nullptr, 1);
   xTaskCreatePinnedToCore(BrightnessTask, "Bright", 2048, nullptr, 1, nullptr, 1);
   xTaskCreatePinnedToCore(WiFiTask, "WiFi", 8192, nullptr, 1, nullptr, 0);  // przeniesienie obsługi WiFi na dedykowany rdzeń 0
+  xTaskCreate(AlarmTask, "Alarm", 2048, NULL, 1, NULL);
 }
 
 void loop() {
